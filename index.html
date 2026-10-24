@@ -160,6 +160,8 @@
   var EMAILJS_SERVICE_ID = 'VOTRE_SERVICE_ID';
   var EMAILJS_TEMPLATE_ID = 'VOTRE_TEMPLATE_ID';
   var EMAILJS_PUBLIC_KEY = 'VOTRE_CLE_PUBLIQUE';
+  // Pas de rotation des tableaux (en degrés) à chaque appui sur J ou L
+  var ROTATION_STEP_DEG = 5;
   // ====================================================================
 
   var isAdminMode = window.location.pathname.includes('/adm') || window.location.search.includes('adm');
@@ -197,7 +199,8 @@
   var START_OFFSET_X = 0;
   var START_OFFSET_Z = 0;
   var START_OFFSET_Y = 0;
-  var EYE_HEIGHT_OVERRIDE = 1.2;
+  // Hauteur des yeux (en mètres du modèle) : 1.25 = 5 cm de plus qu'avant (1.2)
+  var EYE_HEIGHT_OVERRIDE = 1.25;
 
   var isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
   var touchControlsEnabled = false;
@@ -271,6 +274,8 @@
       if (e.code === 'KeyG') removeAimedPainting();
       if (e.code === 'KeyI') { paintingScaleMultiplier *= 1.1; updatePaintHud(); }
       if (e.code === 'KeyK') { paintingScaleMultiplier /= 1.1; updatePaintHud(); }
+      if (e.code === 'KeyJ') rotateAimedPainting(-ROTATION_STEP_DEG);
+      if (e.code === 'KeyL') rotateAimedPainting(ROTATION_STEP_DEG);
     }
   });
   document.addEventListener('keyup', function (e) {
@@ -612,8 +617,17 @@
   var currentPaintingIndex = 0;
   var placedPaintings = [];
   var paintingScaleMultiplier = 1;
+  // Rotation (en degrés) appliquée au prochain tableau accroché
+  var nextPaintingRotationDeg = 0;
   var paintHud = document.getElementById('g3d-paint-hud');
   var textureLoader = new THREE.TextureLoader();
+
+  // Oriente un tableau : face au mur (normale) puis rotation dans le plan du mur
+  function applyPaintingOrientation(mesh, normal, rotationDeg) {
+    var alignQuat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+    var spinQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), THREE.MathUtils.degToRad(rotationDeg || 0));
+    mesh.quaternion.copy(alignQuat).multiply(spinQuat);
+  }
 
   function updatePaintHud() {
     if (!isAdminMode || !paintHud) return;
@@ -626,6 +640,7 @@
     paintHud.innerHTML =
       'Tableau ' + (currentPaintingIndex + 1) + ' / ' + paintingTextures.length + ' — ' + (cur ? cur.name : '') + '<br>' +
       '↑ / ↓ changer &nbsp; F poser &nbsp; G retirer &nbsp; [I]/[K] taille (x' + paintingScaleMultiplier.toFixed(2) + ')<br>' +
+      '[J]/[L] tourner (viser un tableau posé, sinon le prochain : ' + Math.round(nextPaintingRotationDeg) + '°)<br>' +
       '<b>[ENTRÉE] ENREGISTRER LES TABLEAUX POUR TOUS</b>';
   }
 
@@ -657,8 +672,7 @@
     var offset = 0.02 * SCALE;
     mesh.position.copy(hit.point).addScaledVector(normal, offset);
 
-    var quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
-    mesh.quaternion.copy(quat);
+    applyPaintingOrientation(mesh, normal, nextPaintingRotationDeg);
 
     scene.add(mesh);
     var record = {
@@ -666,9 +680,35 @@
       position: { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z },
       normal: { x: normal.x, y: normal.y, z: normal.z },
       width: baseWidth,
-      height: baseHeight
+      height: baseHeight,
+      rotation: nextPaintingRotationDeg
     };
     placedPaintings.push({ mesh: mesh, record: record });
+  }
+
+  // Tourne le tableau visé (s'il y en a un), sinon règle la rotation du prochain tableau
+  function rotateAimedPainting(deltaDeg) {
+    if (!isAdminMode || (!controls.isLocked && !touchControlsEnabled)) return;
+
+    if (placedPaintings.length > 0) {
+      raycaster.set(camera.getWorldPosition(new THREE.Vector3()), camera.getWorldDirection(new THREE.Vector3()));
+      raycaster.far = 100 * SCALE;
+      var meshes = placedPaintings.map(function (p) { return p.mesh; });
+      var hits = raycaster.intersectObjects(meshes, false);
+      if (hits.length > 0) {
+        var hitMesh = hits[0].object;
+        var item = placedPaintings.find(function (p) { return p.mesh === hitMesh; });
+        if (item) {
+          var rec = item.record;
+          rec.rotation = (rec.rotation || 0) + deltaDeg;
+          applyPaintingOrientation(item.mesh, new THREE.Vector3(rec.normal.x, rec.normal.y, rec.normal.z), rec.rotation);
+          return;
+        }
+      }
+    }
+
+    nextPaintingRotationDeg += deltaDeg;
+    updatePaintHud();
   }
 
   function removeAimedPainting() {
@@ -751,8 +791,8 @@
     var mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(rec.position.x, rec.position.y, rec.position.z);
     var normal = new THREE.Vector3(rec.normal.x, rec.normal.y, rec.normal.z);
-    var quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
-    mesh.quaternion.copy(quat);
+    // Les anciens enregistrements n'ont pas de rotation : on les traite comme 0°
+    applyPaintingOrientation(mesh, normal, rec.rotation || 0);
     scene.add(mesh);
 
     if (isAdminMode) {
