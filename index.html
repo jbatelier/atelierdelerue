@@ -1,948 +1,1176 @@
-<div id="odoo-3d-gallery-wrapper">
-<style>
-  #odoo-3d-gallery-wrapper {
-    position: fixed; inset: 0; z-index: 1000;
-    background: #111; overflow: hidden;
-    touch-action: none;
-  }
-  #odoo-3d-gallery-wrapper canvas { display: block; touch-action: none; }
-  #g3d-crosshair {
-    position: fixed; top: 50%; left: 50%;
-    width: 6px; height: 6px; margin: -3px 0 0 -3px;
-    border-radius: 50%; background: rgba(255,255,255,0.8);
-    pointer-events: none; z-index: 1005; display: none;
-  }
-  #g3d-blocker {
-    position: fixed; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-    background: rgba(0,0,0,0.75); z-index: 1010; cursor: pointer;
-  }
-  #g3d-instructions { text-align: center; color: #fff; max-width: 420px; padding: 30px; font-family: Arial, sans-serif; }
-  #g3d-instructions h1 { margin: 0 0 10px; font-size: 26px; }
-  #g3d-instructions p { margin: 6px 0; font-size: 15px; opacity: 0.85; line-height: 1.5; }
-  #g3d-instructions .key {
-    display: inline-block; background: rgba(255,255,255,0.12);
-    border: 1px solid rgba(255,255,255,0.3); border-radius: 4px;
-    padding: 2px 8px; margin: 0 2px; font-size: 13px;
-  }
-  #g3d-loading {
-    position: fixed; inset: 0;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    background: #111; color: #fff; z-index: 1020; font-family: Arial, sans-serif;
-  }
-  #g3d-loading .bar-track { width: 260px; height: 6px; background: rgba(255,255,255,0.15); border-radius: 3px; overflow: hidden; margin-top: 16px; }
-  #g3d-loading .bar-fill { height: 100%; width: 0%; background: #4da3ff; transition: width 0.15s ease-out; }
-  #g3d-paint-hud {
-    position: fixed; bottom: 14px; left: 14px;
-    color: rgba(255,255,255,0.85);
-    font-size: 13px; font-family: Arial, sans-serif;
-    z-index: 1005; pointer-events: none; user-select: none;
-    background: rgba(0,0,0,0.4); padding: 8px 12px; border-radius: 6px;
-    line-height: 1.5; display: none;
-  }
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Atelier de la Rue — Galerie virtuelle</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#04060c">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600&display=swap" rel="stylesheet">
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js">
 
-  /* ---- Bouton et fenêtre de contact ---- */
-  #g3d-contact-btn {
-    position: fixed; top: 16px; right: 16px;
-    z-index: 1050; cursor: pointer;
-    background: rgba(20,20,20,0.75); color: #fff;
-    border: 1px solid rgba(255,255,255,0.35); border-radius: 10px;
-    padding: 16px 24px; font-family: Arial, sans-serif; font-size: 18px;
-  }
-  #g3d-contact-btn:hover { background: rgba(40,40,40,0.9); }
-  #g3d-contact-modal {
-    position: fixed; inset: 0; z-index: 2000;
-    background: rgba(0,0,0,0.7);
-    display: none; align-items: center; justify-content: center;
-  }
-  #g3d-contact-box {
-    background: #1c1c1c; color: #fff; width: 90%; max-width: 380px;
-    border-radius: 10px; padding: 22px; font-family: Arial, sans-serif;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-  }
-  #g3d-contact-box h2 { margin: 0 0 14px; font-size: 19px; }
-  #g3d-contact-box input, #g3d-contact-box textarea {
-    width: 100%; box-sizing: border-box; margin-bottom: 10px;
-    padding: 9px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.25);
-    background: rgba(255,255,255,0.06); color: #fff; font-size: 14px; font-family: Arial, sans-serif;
-  }
-  #g3d-contact-box textarea { min-height: 90px; resize: vertical; }
-  .g3d-contact-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
-  .g3d-contact-actions button {
-    padding: 8px 14px; border-radius: 6px; border: none; cursor: pointer;
-    font-size: 14px; font-family: Arial, sans-serif;
-  }
-  #g3d-contact-cancel { background: rgba(255,255,255,0.15); color: #fff; }
-  #g3d-contact-send { background: #4da3ff; color: #111; font-weight: bold; }
-  #g3d-contact-error { color: #ff8686; font-size: 13px; margin: -4px 0 10px; display: none; }
-  #g3d-contact-status { font-size: 13px; margin: -4px 0 10px; display: none; }
-  #g3d-contact-send:disabled { opacity: 0.6; cursor: default; }
-
-  /* ---- Croix de flèches tactile (mobile) ---- */
-  #g3d-dpad {
-    position: fixed; bottom: 24px; left: 24px;
-    z-index: 1040; display: none;
-    grid-template-columns: 84px 84px 84px;
-    grid-template-rows: 84px 84px 84px;
-    gap: 6px;
-  }
-  #g3d-dpad button {
-    width: 84px; height: 84px; border-radius: 14px;
-    background: rgba(255,255,255,0.18); border: 2px solid rgba(255,255,255,0.5);
-    color: #fff; font-size: 32px; display: flex; align-items: center; justify-content: center;
-    -webkit-user-select: none; user-select: none; touch-action: none; padding: 0;
-  }
-  #g3d-dpad button.active { background: rgba(77,163,255,0.55); border-color: #4da3ff; }
-  #g3d-dpad-up { grid-column: 2; grid-row: 1; }
-  #g3d-dpad-left { grid-column: 1; grid-row: 2; }
-  #g3d-dpad-right { grid-column: 3; grid-row: 2; }
-  #g3d-dpad-down { grid-column: 2; grid-row: 3; }
-</style>
-
-<div id="g3d-loading">
-  <div>Chargement de la galerie…</div>
-  <div class="bar-track"><div class="bar-fill" id="g3d-bar-fill"></div></div>
-</div>
-
-<div id="g3d-blocker" style="display:none;">
-  <div id="g3d-instructions">
-    <h1>🖼️ Galerie Virtuelle</h1>
-    <p id="g3d-mode-title">Mode Visiteur</p>
-    <p>Clique pour entrer et prendre le contrôle</p>
-    <p><span class="key">Z</span><span class="key">Q</span><span class="key">S</span><span class="key">D</span> pour se déplacer  •  <span class="key">Double-clic</span> marcher là où tu regardes</p>
-    <p>Souris pour regarder  •  <span class="key">Maj</span> courir  •  <span class="key">Échap</span> sortir</p>
-  </div>
-</div>
-
-<div id="g3d-crosshair"></div>
-<div id="g3d-paint-hud"></div>
-<div id="g3d-dpad">
-  <button id="g3d-dpad-up">▲</button>
-  <button id="g3d-dpad-left">◀</button>
-  <button id="g3d-dpad-right">▶</button>
-  <button id="g3d-dpad-down">▼</button>
-</div>
-
-<button id="g3d-contact-btn">✉️ Contact</button>
-<div id="g3d-contact-modal">
-  <div id="g3d-contact-box">
-    <h2>Contactez-nous</h2>
-    <input id="g3d-contact-name" placeholder="Votre nom" />
-    <input id="g3d-contact-email" placeholder="Votre email" type="email" />
-    <textarea id="g3d-contact-message" placeholder="Votre message"></textarea>
-    <div id="g3d-contact-error">Merci de remplir tous les champs (email valide).</div>
-    <div id="g3d-contact-status"></div>
-    <div class="g3d-contact-actions">
-      <button id="g3d-contact-cancel">Annuler</button>
-      <button id="g3d-contact-send">Envoyer</button>
-    </div>
-  </div>
-</div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-
+<!-- =====================================================================
+     RÉGLAGES (c'est le seul endroit à modifier)
+     ===================================================================== -->
 <script>
-(function () {
-  var MODEL_URL = 'gallery.glb';
-  var PAINTINGS_ZIP_URL = 'paintings.zip';
-
-  // ====================================================================
-  // CONFIGURATION (aucune clé secrète dans ce fichier : le bin jsonbin est en lecture publique,
-  // et l'admin saisit sa clé à l'ouverture de ?adm)
-  // ====================================================================
-  var STORAGE_BIN_ID = '6ac6a8dbffd5d16053572822';
-  var CONTACT_EMAIL = 'zonedel81@gmail.com';
+window.GALLERY_CONFIG = {
+  modelUrl: 'gallery.glb',
+  binId: '6ac6a8dbffd5d16053572822',          // bin jsonbin (positions des tableaux)
+  contactEmail: 'zonedel81@gmail.com',
   // EmailJS : à remplir avec les 3 valeurs de ton compte emailjs.com (elles sont faites pour être publiques)
-  var EMAILJS_SERVICE_ID = 'VOTRE_SERVICE_ID';
-  var EMAILJS_TEMPLATE_ID = 'VOTRE_TEMPLATE_ID';
-  var EMAILJS_PUBLIC_KEY = 'VOTRE_CLE_PUBLIQUE';
-  // Pas de rotation des tableaux (en degrés) à chaque appui sur J ou L
-  var ROTATION_STEP_DEG = 5;
-  // ====================================================================
-
-  var isAdminMode = window.location.pathname.includes('/adm') || window.location.search.includes('adm');
-
-  var ADMIN_KEY = null;
-  if (isAdminMode) {
-    var enteredKey = window.prompt("Clé d'administration :");
-    if (enteredKey && enteredKey.trim()) {
-      ADMIN_KEY = enteredKey.trim();
-    } else {
-      isAdminMode = false;
-      alert('Mode visiteur activé.');
-    }
-  }
-
-  if (isAdminMode) {
-    document.getElementById('g3d-mode-title').innerText = 'Mode Administrateur (Entrée : Sauvegarder)';
-  }
-
-  if (('ontouchstart' in window) || navigator.maxTouchPoints > 0) {
-    var instrEl = document.getElementById('g3d-instructions');
-    if (instrEl) {
-      var extraLines = instrEl.querySelectorAll('p');
-      for (var pi = 2; pi < extraLines.length; pi++) extraLines[pi].style.display = 'none';
-      var touchP = document.createElement('p');
-      touchP.innerHTML = 'Glisse le doigt pour regarder  •  Utilise les flèches pour te déplacer';
-      instrEl.appendChild(touchP);
-    }
-    var dpadEl = document.getElementById('g3d-dpad');
-    if (dpadEl) dpadEl.style.display = 'grid';
-  }
-
-  var PRESET_PAINTINGS = [];
-
-  var START_OFFSET_X = 0;
-  var START_OFFSET_Z = 0;
-  var START_OFFSET_Y = 0;
-  // Hauteur des yeux (en mètres du modèle) : 1.25 = 5 cm de plus qu'avant (1.2)
-  var EYE_HEIGHT_OVERRIDE = 1.25;
-
-  var isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
-  var touchControlsEnabled = false;
-
-  var moveTarget = null;
-  var isAutoMoving = false;
-  var AUTO_MOVE_ARRIVE_DIST = 0.25;
-
-  var SCALE = 1;
-  var EYE_HEIGHT = EYE_HEIGHT_OVERRIDE, PLAYER_RADIUS = 0.35, WALK_SPEED = 3.2, RUN_SPEED = 6.0;
-  var GROUND_SNAP_SPEED = 12, MAX_STEP_UP = 0.5, RAY_LOOKAHEAD = 0.05;
-
-  var wrapper = document.getElementById('odoo-3d-gallery-wrapper');
-  var scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x111111);
-  scene.fog = new THREE.Fog(0x111111, 20, 80);
-
-  var camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 500);
-  var renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  wrapper.appendChild(renderer.domElement);
-
-  scene.add(new THREE.AmbientLight(0xffffff, 0.25));
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.25));
-  var debugLight = new THREE.DirectionalLight(0xffffff, 0.35);
-  debugLight.position.set(10, 20, 10);
-  scene.add(debugLight);
-
-  if (renderer.outputEncoding !== undefined && THREE.sRGBEncoding !== undefined) {
-    renderer.outputEncoding = THREE.sRGBEncoding;
-  }
-
-  var controls = new THREE.PointerLockControls(camera, renderer.domElement);
-  scene.add(controls.getObject());
-  var pitchObject = controls.getObject().children[0];
-
-  var blocker = document.getElementById('g3d-blocker');
-  var crosshair = document.getElementById('g3d-crosshair');
-  blocker.addEventListener('click', function () {
-    if (isTouchDevice) {
-      blocker.style.display = 'none';
-      crosshair.style.display = 'none';
-      touchControlsEnabled = true;
-    } else {
-      controls.lock();
-    }
-  });
-  controls.addEventListener('lock', function () { blocker.style.display = 'none'; crosshair.style.display = 'block'; });
-  controls.addEventListener('unlock', function () { blocker.style.display = 'flex'; crosshair.style.display = 'none'; });
-
-  var move = { forward: false, back: false, left: false, right: false, run: false, up: false, down: false };
-  document.addEventListener('keydown', function (e) {
-    if (isAdminMode && e.code === 'Enter') {
-      savePaintings();
-      return;
-    }
-
-    if (e.code === 'KeyZ' || e.code === 'KeyW') { move.forward = true; isAutoMoving = false; }
-    if (e.code === 'KeyS') { move.back = true; isAutoMoving = false; }
-    if (e.code === 'KeyQ' || e.code === 'KeyA') { move.left = true; isAutoMoving = false; }
-    if (e.code === 'KeyD') { move.right = true; isAutoMoving = false; }
-    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') move.run = true;
-    if (e.code === 'Space') move.up = true;
-    if (e.code === 'KeyC' || e.code === 'ControlLeft') move.down = true;
-
-    if (isAdminMode) {
-      if (e.code === 'ArrowUp') selectPainting(currentPaintingIndex + 1);
-      if (e.code === 'ArrowDown') selectPainting(currentPaintingIndex - 1);
-      if (e.code === 'KeyF') hangCurrentPainting();
-      if (e.code === 'KeyG') removeAimedPainting();
-      if (e.code === 'KeyI') { paintingScaleMultiplier *= 1.1; updatePaintHud(); }
-      if (e.code === 'KeyK') { paintingScaleMultiplier /= 1.1; updatePaintHud(); }
-      if (e.code === 'KeyJ') rotateAimedPainting(-ROTATION_STEP_DEG);
-      if (e.code === 'KeyL') rotateAimedPainting(ROTATION_STEP_DEG);
-    }
-  });
-  document.addEventListener('keyup', function (e) {
-    if (e.code === 'KeyZ' || e.code === 'KeyW') move.forward = false;
-    if (e.code === 'KeyS') move.back = false;
-    if (e.code === 'KeyQ' || e.code === 'KeyA') move.left = false;
-    if (e.code === 'KeyD') move.right = false;
-    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') move.run = false;
-    if (e.code === 'Space') move.up = false;
-    if (e.code === 'KeyC' || e.code === 'ControlLeft') move.down = false;
-  });
-
-  var collidableMeshes = [];
-  var modelBox = new THREE.Box3();
-  var raycaster = new THREE.Raycaster();
-  var barFill = document.getElementById('g3d-bar-fill');
-  var loadingEl = document.getElementById('g3d-loading');
-
-  function raycastFloorY(x, fromY, z) {
-    raycaster.set(new THREE.Vector3(x, fromY, z), new THREE.Vector3(0, -1, 0));
-    raycaster.far = (fromY - modelBox.min.y) + (2 * SCALE);
-    var hits = raycaster.intersectObjects(collidableMeshes, false);
-    return hits.length > 0 ? hits[0].point.y : null;
-  }
-  function raycastFloorYRobust(x, fromY, z) {
-    var r = PLAYER_RADIUS * 0.6;
-    var offsets = [[0, 0], [r, 0], [-r, 0], [0, r], [0, -r]];
-    var best = null;
-    for (var i = 0; i < offsets.length; i++) {
-      var fy = raycastFloorY(x + offsets[i][0], fromY, z + offsets[i][1]);
-      if (fy !== null && (best === null || fy > best)) best = fy;
-    }
-    return best;
-  }
-  function raycastCeilingDist(pos) {
-    raycaster.set(pos, new THREE.Vector3(0, 1, 0));
-    raycaster.far = EYE_HEIGHT + 0.3;
-    var hits = raycaster.intersectObjects(collidableMeshes, false);
-    return hits.length > 0 ? hits[0].distance : Infinity;
-  }
-  function isBlocked(position, direction, distance) {
-    if (direction.lengthSq() === 0) return false;
-    var dir = direction.clone().normalize();
-    var origin = position.clone();
-    origin.y = position.y - EYE_HEIGHT + MAX_STEP_UP + (0.05 * SCALE);
-    raycaster.set(origin, dir);
-    raycaster.far = distance + PLAYER_RADIUS;
-    var hits = raycaster.intersectObjects(collidableMeshes, false);
-    return hits.length > 0 && hits[0].distance < (PLAYER_RADIUS + RAY_LOOKAHEAD);
-  }
-
-  function getWalkTargetFromRay() {
-    var hits = raycaster.intersectObjects(collidableMeshes, false);
-    if (hits.length === 0) return null;
-    var hit = hits[0];
-    var floorY = raycastFloorYRobust(hit.point.x, hit.point.y + (2 * SCALE), hit.point.z);
-    return { x: hit.point.x, z: hit.point.z, y: floorY !== null ? floorY : hit.point.y };
-  }
-
-  function startAutoMoveToScreenPoint(clientX, clientY) {
-    var rect = renderer.domElement.getBoundingClientRect();
-    var ndcX = ((clientX - rect.left) / rect.width) * 2 - 1;
-    var ndcY = -((clientY - rect.top) / rect.height) * 2 + 1;
-    raycaster.setFromCamera({ x: ndcX, y: ndcY }, camera);
-    var target = getWalkTargetFromRay();
-    if (target) { moveTarget = target; isAutoMoving = true; }
-  }
-
-  function startAutoMoveToCrosshair() {
-    raycaster.set(camera.getWorldPosition(new THREE.Vector3()), camera.getWorldDirection(new THREE.Vector3()));
-    raycaster.far = 200 * SCALE;
-    var target = getWalkTargetFromRay();
-    if (target) { moveTarget = target; isAutoMoving = true; }
-  }
-
-  renderer.domElement.addEventListener('dblclick', function () {
-    if (!controls.isLocked) return;
-    startAutoMoveToCrosshair();
-  });
-
-  // ---- Contrôles tactiles (mobile) ----
-  var touchLook = { active: false, id: null, lastX: 0, lastY: 0, startX: 0, startY: 0, moved: false };
-  var touchRotationTarget = { yaw: 0, pitch: 0 };
-  var TOUCH_LOOK_SENSITIVITY = 0.0022;
-  var TOUCH_LOOK_SMOOTHING = 0.18;
-  var TOUCH_MAX_DELTA_PX = 40;
-
-  renderer.domElement.addEventListener('touchstart', function (e) {
-    if (!touchControlsEnabled) return;
-    if (touchLook.active) return;
-    var t = e.changedTouches[0];
-    touchLook.active = true;
-    touchLook.id = t.identifier;
-    touchLook.moved = false;
-    touchLook.lastX = t.clientX;
-    touchLook.lastY = t.clientY;
-    touchLook.startX = t.clientX;
-    touchLook.startY = t.clientY;
-  }, { passive: true });
-
-  renderer.domElement.addEventListener('touchmove', function (e) {
-    if (!touchControlsEnabled || !touchLook.active) return;
-    var t = null;
-    for (var i = 0; i < e.changedTouches.length; i++) {
-      if (e.changedTouches[i].identifier === touchLook.id) { t = e.changedTouches[i]; break; }
-    }
-    if (!t) return;
-    e.preventDefault();
-    var dx = t.clientX - touchLook.lastX;
-    var dy = t.clientY - touchLook.lastY;
-    dx = Math.max(-TOUCH_MAX_DELTA_PX, Math.min(TOUCH_MAX_DELTA_PX, dx));
-    dy = Math.max(-TOUCH_MAX_DELTA_PX, Math.min(TOUCH_MAX_DELTA_PX, dy));
-    touchLook.lastX = t.clientX;
-    touchLook.lastY = t.clientY;
-    if (Math.abs(t.clientX - touchLook.startX) > 8 || Math.abs(t.clientY - touchLook.startY) > 8) {
-      touchLook.moved = true;
-    }
-    touchRotationTarget.yaw -= dx * TOUCH_LOOK_SENSITIVITY;
-    touchRotationTarget.pitch -= dy * TOUCH_LOOK_SENSITIVITY;
-    var MAX_PENDING = 0.35;
-    touchRotationTarget.yaw = Math.max(-MAX_PENDING, Math.min(MAX_PENDING, touchRotationTarget.yaw));
-    touchRotationTarget.pitch = Math.max(-MAX_PENDING, Math.min(MAX_PENDING, touchRotationTarget.pitch));
-  }, { passive: false });
-
-  function endTouchLook(e) {
-    if (!touchControlsEnabled || !touchLook.active) return;
-    var ended = false;
-    for (var i = 0; i < e.changedTouches.length; i++) {
-      if (e.changedTouches[i].identifier === touchLook.id) { ended = true; break; }
-    }
-    if (!ended) return;
-    if (!touchLook.moved) {
-      startAutoMoveToScreenPoint(touchLook.startX, touchLook.startY);
-    }
-    touchLook.active = false;
-    touchLook.id = null;
-  }
-  renderer.domElement.addEventListener('touchend', endTouchLook);
-  renderer.domElement.addEventListener('touchcancel', endTouchLook);
-
-  function applySmoothedTouchLook() {
-    if (Math.abs(touchRotationTarget.yaw) < 0.00003 && Math.abs(touchRotationTarget.pitch) < 0.00003) return;
-    var applyYaw = touchRotationTarget.yaw * TOUCH_LOOK_SMOOTHING;
-    var applyPitch = touchRotationTarget.pitch * TOUCH_LOOK_SMOOTHING;
-    controls.getObject().rotation.y += applyYaw;
-    if (pitchObject) {
-      pitchObject.rotation.x += applyPitch;
-      pitchObject.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitchObject.rotation.x));
-    }
-    touchRotationTarget.yaw -= applyYaw;
-    touchRotationTarget.pitch -= applyPitch;
-  }
-
-  // ---- Croix de flèches tactile : appui maintenu = se déplacer dans cette direction ----
-  function setupDpadButton(id, moveKey) {
-    var btn = document.getElementById(id);
-    if (!btn) return;
-    var start = function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      move[moveKey] = true;
-      isAutoMoving = false;
-      btn.classList.add('active');
-    };
-    var stop = function (e) {
-      if (e) { e.preventDefault(); e.stopPropagation(); }
-      move[moveKey] = false;
-      btn.classList.remove('active');
-    };
-    btn.addEventListener('touchstart', start, { passive: false });
-    btn.addEventListener('touchend', stop, { passive: false });
-    btn.addEventListener('touchcancel', stop, { passive: false });
-    btn.addEventListener('mousedown', start);
-    btn.addEventListener('mouseup', stop);
-    btn.addEventListener('mouseleave', stop);
-  }
-  setupDpadButton('g3d-dpad-up', 'forward');
-  setupDpadButton('g3d-dpad-down', 'back');
-  setupDpadButton('g3d-dpad-left', 'left');
-  setupDpadButton('g3d-dpad-right', 'right');
-
-  var loader = new THREE.GLTFLoader();
-  loader.load(MODEL_URL, function (gltf) {
-    var model = gltf.scene;
-
-    model.traverse(function (child) {
-      if (child.isMesh) {
-        child.visible = true;
-        child.frustumCulled = false;
-        child.receiveShadow = true;
-        child.castShadow = true;
-        collidableMeshes.push(child);
-
-        if (child.material) {
-          var DARKEN_FACTOR = 0.5;
-          if (Array.isArray(child.material)) {
-            child.material.forEach(function(m) {
-              m.side = THREE.DoubleSide;
-              m.transparent = false;
-              m.opacity = 1.0;
-              if (m.color) m.color.multiplyScalar(DARKEN_FACTOR);
-            });
-          } else {
-            child.material.side = THREE.DoubleSide;
-            child.material.transparent = false;
-            child.material.opacity = 1.0;
-            if (child.material.color) child.material.color.multiplyScalar(DARKEN_FACTOR);
-          }
-        }
-      }
-    });
-
-    scene.add(model);
-    modelBox.setFromObject(model);
-    var center = new THREE.Vector3();
-    modelBox.getCenter(center);
-    var size = new THREE.Vector3();
-    modelBox.getSize(size);
-    var diagonal = size.length();
-
-    SCALE = diagonal / 20;
-    if (!isFinite(SCALE) || SCALE <= 0) SCALE = 1;
-    EYE_HEIGHT = EYE_HEIGHT_OVERRIDE;
-    PLAYER_RADIUS = 0.35 * SCALE;
-    WALK_SPEED = 3.2 * SCALE;
-    RUN_SPEED = 6.0 * SCALE;
-    MAX_STEP_UP = 0.5 * SCALE;
-    RAY_LOOKAHEAD = 0.05 * SCALE;
-    camera.far = Math.max(1000, diagonal * 10);
-    camera.near = Math.max(0.001, diagonal * 0.0001);
-    camera.updateProjectionMatrix();
-    scene.fog.near = diagonal * 2;
-    scene.fog.far = diagonal * 8;
-
-    var startY = modelBox.max.y > modelBox.min.y ? modelBox.min.y + EYE_HEIGHT + START_OFFSET_Y : center.y;
-    controls.getObject().position.set(center.x + START_OFFSET_X, startY, center.z + START_OFFSET_Z);
-    camera.lookAt(center.x + START_OFFSET_X + 1, startY, center.z + START_OFFSET_Z);
-
-    loadingEl.style.display = 'none';
-    blocker.style.display = 'flex';
-    animate();
-  }, function (xhr) {
-    if (xhr.total) barFill.style.width = Math.min(100, (xhr.loaded / xhr.total) * 100) + '%';
-  }, function (err) {
-    loadingEl.innerHTML = '<div style="color:#ff6b6b">Erreur de chargement du modèle 3D.</div>';
-    console.error(err);
-  });
-
-  var clock = new THREE.Clock();
-  var forwardVec = new THREE.Vector3(), rightVec = new THREE.Vector3(), moveDir = new THREE.Vector3();
-
-  function animate() {
-    requestAnimationFrame(animate);
-    var delta = Math.min(clock.getDelta(), 0.05);
-    if (controls.isLocked || touchControlsEnabled) updateMovement(delta);
-    applySmoothedTouchLook();
-    renderer.render(scene, camera);
-  }
-
-  function updateMovement(delta) {
-    var speed = move.run ? RUN_SPEED : WALK_SPEED;
-    var step = speed * delta;
-    camera.getWorldDirection(forwardVec);
-    forwardVec.y = 0;
-    forwardVec.normalize();
-    rightVec.crossVectors(forwardVec, camera.up).normalize();
-
-    moveDir.set(0, 0, 0);
-    if (move.forward) moveDir.add(forwardVec);
-    if (move.back) moveDir.sub(forwardVec);
-    if (move.right) moveDir.add(rightVec);
-    if (move.left) moveDir.sub(rightVec);
-
-    var pos = controls.getObject().position;
-
-    if (moveDir.lengthSq() > 0) {
-      isAutoMoving = false;
-      moveDir.normalize();
-      var testX = new THREE.Vector3(moveDir.x, 0, 0);
-      var testZ = new THREE.Vector3(0, 0, moveDir.z);
-      if (moveDir.x !== 0 && !isBlocked(pos, testX, step)) pos.x += moveDir.x * step;
-      if (moveDir.z !== 0 && !isBlocked(pos, testZ, step)) pos.z += moveDir.z * step;
-    } else if (isAutoMoving && moveTarget) {
-      var toTargetX = moveTarget.x - pos.x;
-      var toTargetZ = moveTarget.z - pos.z;
-      var dist = Math.hypot(toTargetX, toTargetZ);
-      if (dist < AUTO_MOVE_ARRIVE_DIST * SCALE) {
-        isAutoMoving = false;
-      } else {
-        var dirX = toTargetX / dist;
-        var dirZ = toTargetZ / dist;
-        var autoStep = Math.min(WALK_SPEED * delta, dist);
-        var testX = new THREE.Vector3(dirX, 0, 0);
-        var testZ = new THREE.Vector3(0, 0, dirZ);
-        var movedX = false, movedZ = false;
-        if (!isBlocked(pos, testX, autoStep)) { pos.x += dirX * autoStep; movedX = true; }
-        if (!isBlocked(pos, testZ, autoStep)) { pos.z += dirZ * autoStep; movedZ = true; }
-        if (!movedX && !movedZ) isAutoMoving = false;
-
-        var targetYaw = Math.atan2(dirX, dirZ);
-        var yawObj = controls.getObject();
-        var yawDiff = targetYaw - yawObj.rotation.y;
-        while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
-        while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
-        yawObj.rotation.y += yawDiff * Math.min(1, 6 * delta);
-      }
-    }
-
-    var pos2 = controls.getObject().position;
-    var floorY = raycastFloorYRobust(pos2.x, pos2.y + EYE_HEIGHT, pos2.z);
-
-    if (floorY !== null) {
-      var targetY = floorY + EYE_HEIGHT;
-      var diff = targetY - pos2.y;
-      if (Math.abs(diff) < MAX_STEP_UP + EYE_HEIGHT) {
-        pos2.y += diff * Math.min(1, GROUND_SNAP_SPEED * delta);
-      } else if (diff < 0) {
-        pos2.y += Math.max(diff, -WALK_SPEED * delta * 2);
-      }
-    } else {
-      raycaster.set(new THREE.Vector3(pos2.x, pos2.y - EYE_HEIGHT - (0.05 * SCALE), pos2.z), new THREE.Vector3(0, 1, 0));
-      raycaster.far = MAX_STEP_UP + (0.3 * SCALE);
-      var upHits = raycaster.intersectObjects(collidableMeshes, false);
-      if (upHits.length > 0) {
-        pos2.y = upHits[0].point.y + EYE_HEIGHT;
-      }
-    }
-    var ceilDist = raycastCeilingDist(pos2);
-    if (ceilDist < EYE_HEIGHT) pos2.y -= (EYE_HEIGHT - ceilDist);
-  }
-
-  window.addEventListener('resize', function () {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-  });
-
-  var paintingTextures = [];
-  var currentPaintingIndex = 0;
-  var placedPaintings = [];
-  var paintingScaleMultiplier = 1;
-  // Rotation (en degrés) appliquée au prochain tableau accroché
-  var nextPaintingRotationDeg = 0;
-  var paintHud = document.getElementById('g3d-paint-hud');
-  var textureLoader = new THREE.TextureLoader();
-
-  // Oriente un tableau : face au mur (normale) puis rotation dans le plan du mur
-  function applyPaintingOrientation(mesh, normal, rotationDeg) {
-    var alignQuat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
-    var spinQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), THREE.MathUtils.degToRad(rotationDeg || 0));
-    mesh.quaternion.copy(alignQuat).multiply(spinQuat);
-  }
-
-  function updatePaintHud() {
-    if (!isAdminMode || !paintHud) return;
-    if (paintingTextures.length === 0) {
-      paintHud.style.display = 'none';
-      return;
-    }
-    paintHud.style.display = 'block';
-    var cur = paintingTextures[currentPaintingIndex];
-    paintHud.innerHTML =
-      'Tableau ' + (currentPaintingIndex + 1) + ' / ' + paintingTextures.length + ' — ' + (cur ? cur.name : '') + '<br>' +
-      '↑ / ↓ changer &nbsp; F poser &nbsp; G retirer &nbsp; [I]/[K] taille (x' + paintingScaleMultiplier.toFixed(2) + ')<br>' +
-      '[J]/[L] tourner (viser un tableau posé, sinon le prochain : ' + Math.round(nextPaintingRotationDeg) + '°)<br>' +
-      '<b>[ENTRÉE] ENREGISTRER LES TABLEAUX POUR TOUS</b>';
-  }
-
-  function selectPainting(idx) {
-    if (!isAdminMode || paintingTextures.length === 0) return;
-    currentPaintingIndex = ((idx % paintingTextures.length) + paintingTextures.length) % paintingTextures.length;
-    updatePaintHud();
-  }
-
-  function hangCurrentPainting() {
-    if (!isAdminMode || (!controls.isLocked && !touchControlsEnabled)) return;
-    if (paintingTextures.length === 0) return;
-
-    raycaster.set(camera.getWorldPosition(new THREE.Vector3()), camera.getWorldDirection(new THREE.Vector3()));
-    raycaster.far = 100 * SCALE;
-    var hits = raycaster.intersectObjects(collidableMeshes, false);
-    if (hits.length === 0) return;
-    var hit = hits[0];
-    var normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld).normalize();
-
-    var data = paintingTextures[currentPaintingIndex];
-    var baseHeight = 1.1 * SCALE * paintingScaleMultiplier;
-    var baseWidth = baseHeight * data.aspect;
-
-    var geo = new THREE.PlaneGeometry(baseWidth, baseHeight);
-    var mat = new THREE.MeshBasicMaterial({ map: data.texture, side: THREE.DoubleSide });
-    var mesh = new THREE.Mesh(geo, mat);
-
-    var offset = 0.02 * SCALE;
-    mesh.position.copy(hit.point).addScaledVector(normal, offset);
-
-    applyPaintingOrientation(mesh, normal, nextPaintingRotationDeg);
-
-    scene.add(mesh);
-    var record = {
-      index: currentPaintingIndex,
-      position: { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z },
-      normal: { x: normal.x, y: normal.y, z: normal.z },
-      width: baseWidth,
-      height: baseHeight,
-      rotation: nextPaintingRotationDeg
-    };
-    placedPaintings.push({ mesh: mesh, record: record });
-  }
-
-  // Tourne le tableau visé (s'il y en a un), sinon règle la rotation du prochain tableau
-  function rotateAimedPainting(deltaDeg) {
-    if (!isAdminMode || (!controls.isLocked && !touchControlsEnabled)) return;
-
-    if (placedPaintings.length > 0) {
-      raycaster.set(camera.getWorldPosition(new THREE.Vector3()), camera.getWorldDirection(new THREE.Vector3()));
-      raycaster.far = 100 * SCALE;
-      var meshes = placedPaintings.map(function (p) { return p.mesh; });
-      var hits = raycaster.intersectObjects(meshes, false);
-      if (hits.length > 0) {
-        var hitMesh = hits[0].object;
-        var item = placedPaintings.find(function (p) { return p.mesh === hitMesh; });
-        if (item) {
-          var rec = item.record;
-          rec.rotation = (rec.rotation || 0) + deltaDeg;
-          applyPaintingOrientation(item.mesh, new THREE.Vector3(rec.normal.x, rec.normal.y, rec.normal.z), rec.rotation);
-          return;
-        }
-      }
-    }
-
-    nextPaintingRotationDeg += deltaDeg;
-    updatePaintHud();
-  }
-
-  function removeAimedPainting() {
-    if (!isAdminMode || (!controls.isLocked && !touchControlsEnabled)) return;
-    if (placedPaintings.length === 0) return;
-
-    raycaster.set(camera.getWorldPosition(new THREE.Vector3()), camera.getWorldDirection(new THREE.Vector3()));
-    raycaster.far = 100 * SCALE;
-    var meshes = placedPaintings.map(function (p) { return p.mesh; });
-    var hits = raycaster.intersectObjects(meshes, false);
-    if (hits.length === 0) return;
-
-    var hitMesh = hits[0].object;
-    var idx = placedPaintings.findIndex(function (p) { return p.mesh === hitMesh; });
-    if (idx === -1) return;
-
-    var item = placedPaintings.splice(idx, 1)[0];
-    scene.remove(item.mesh);
-    item.mesh.geometry.dispose();
-    item.mesh.material.dispose();
-  }
-
-  // ------------------------------------------------------------------
-  // STOCKAGE PARTAGÉ EN LIGNE (remplace localStorage)
-  // ------------------------------------------------------------------
-  function putPaintings(headerName, records) {
-    var headers = { 'Content-Type': 'application/json' };
-    headers[headerName] = ADMIN_KEY;
-    return fetch('https://api.jsonbin.io/v3/b/' + STORAGE_BIN_ID, {
-      method: 'PUT',
-      headers: headers,
-      body: JSON.stringify({ paintings: records })
-    });
-  }
-
-  function savePaintings() {
-    if (!isAdminMode) return;
-    var records = placedPaintings.map(function (p) { return p.record; });
-    // On essaie d'abord comme Master Key, puis comme Access Key (clé limitée à ce bin)
-    putPaintings('X-Master-Key', records)
-      .then(function (res) {
-        if (res.status === 401 || res.status === 403) return putPaintings('X-Access-Key', records);
-        return res;
-      })
-      .then(function (res) {
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        alert("Succès ! Les positions des tableaux ont été enregistrées. Elles s'afficheront désormais pour tous les visiteurs.");
-      })
-      .catch(function (err) {
-        var m = String(err && err.message || err);
-        var hint = /40[13]/.test(m) ? "La clé a été refusée : ce n'est pas celle du compte qui possède le bin (ou elle n'a pas le droit de modifier)."
-                 : /404/.test(m) ? "Bin introuvable : vérifie l'identifiant du bin."
-                 : /429/.test(m) ? "Trop de requêtes jsonbin, réessaie plus tard."
-                 : "Problème de connexion ou de blocage du navigateur.";
-        alert("Échec de l'enregistrement (" + m + ").\n" + hint);
-        console.error(err);
-      });
-  }
-
-  function loadRemotePaintings() {
-    return fetch('https://api.jsonbin.io/v3/b/' + STORAGE_BIN_ID + '/latest')
-      .then(function (res) {
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        return res.json();
-      })
-      .then(function (data) {
-        return (data && data.record && data.record.paintings) ? data.record.paintings : [];
-      })
-      .catch(function (err) {
-        console.error('Impossible de charger les tableaux enregistrés en ligne', err);
-        return [];
-      });
-  }
-
-  function createPaintingMesh(rec) {
-    var data = paintingTextures[rec.index];
-    if (!data) return;
-    var geo = new THREE.PlaneGeometry(rec.width, rec.height);
-    var mat = new THREE.MeshBasicMaterial({ map: data.texture, side: THREE.DoubleSide });
-    var mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(rec.position.x, rec.position.y, rec.position.z);
-    var normal = new THREE.Vector3(rec.normal.x, rec.normal.y, rec.normal.z);
-    // Les anciens enregistrements n'ont pas de rotation : on les traite comme 0°
-    applyPaintingOrientation(mesh, normal, rec.rotation || 0);
-    scene.add(mesh);
-
-    if (isAdminMode) {
-      placedPaintings.push({ mesh: mesh, record: rec });
-    }
-  }
-
-  var texturesPromise = fetch(PAINTINGS_ZIP_URL)
-    .then(function (res) { return res.blob(); })
-    .then(function (blob) { return JSZip.loadAsync(blob); })
-    .then(function (zip) {
-      var names = Object.keys(zip.files)
-        .filter(function (n) { return /\.(jpe?g|png)$/i.test(n); })
-        .sort();
-      var promises = names.map(function (name) {
-        return zip.files[name].async('blob').then(function (imgBlob) {
-          var url = URL.createObjectURL(imgBlob);
-          return new Promise(function (resolve) {
-            textureLoader.load(url, function (tex) {
-              if (tex.encoding !== undefined && THREE.sRGBEncoding !== undefined) tex.encoding = THREE.sRGBEncoding;
-              var aspect = tex.image.naturalWidth / tex.image.naturalHeight;
-              resolve({ texture: tex, aspect: aspect, name: name });
-            });
-          });
-        });
-      });
-      return Promise.all(promises);
-    })
-    .catch(function (err) {
-      console.error(err);
-      return [];
-    });
-
-  Promise.all([texturesPromise, loadRemotePaintings()])
-    .then(function (results) {
-      paintingTextures = results[0];
-      var remotePaintings = results[1];
-      PRESET_PAINTINGS = remotePaintings;
-      PRESET_PAINTINGS.forEach(function (rec) {
-        createPaintingMesh(rec);
-      });
-      if (isAdminMode) {
-        updatePaintHud();
-      }
-    });
-
-  // ------------------------------------------------------------------
-  // BOUTON ET FORMULAIRE DE CONTACT
-  // ------------------------------------------------------------------
-  var contactBtn = document.getElementById('g3d-contact-btn');
-  var contactModal = document.getElementById('g3d-contact-modal');
-  var contactCancel = document.getElementById('g3d-contact-cancel');
-  var contactSend = document.getElementById('g3d-contact-send');
-  var contactError = document.getElementById('g3d-contact-error');
-  var contactStatus = document.getElementById('g3d-contact-status');
-  var contactName = document.getElementById('g3d-contact-name');
-  var contactEmail = document.getElementById('g3d-contact-email');
-  var contactMessage = document.getElementById('g3d-contact-message');
-
-  function openContactModal() {
-    if (controls.isLocked) controls.unlock();
-    contactError.style.display = 'none';
-    contactStatus.style.display = 'none';
-    contactModal.style.display = 'flex';
-  }
-  function closeContactModal() {
-    contactModal.style.display = 'none';
-  }
-
-  contactBtn.addEventListener('click', openContactModal);
-  contactCancel.addEventListener('click', closeContactModal);
-  contactModal.addEventListener('click', function (e) {
-    if (e.target === contactModal) closeContactModal();
-  });
-
-  function showContactStatus(text, ok) {
-    contactStatus.textContent = text;
-    contactStatus.style.color = ok ? '#7be495' : '#ff8686';
-    contactStatus.style.display = 'block';
-  }
-
-  function emailJsConfigured() {
-    return EMAILJS_SERVICE_ID.indexOf('VOTRE_') !== 0 &&
-           EMAILJS_TEMPLATE_ID.indexOf('VOTRE_') !== 0 &&
-           EMAILJS_PUBLIC_KEY.indexOf('VOTRE_') !== 0;
-  }
-
-  function sendWithMailto(name, email, message) {
-    var subject = encodeURIComponent('Message depuis la galerie virtuelle - ' + name);
-    var body = encodeURIComponent('Nom : ' + name + '\nEmail : ' + email + '\n\n' + message);
-    window.location.href = 'mailto:' + CONTACT_EMAIL + '?subject=' + subject + '&body=' + body;
-  }
-
-  contactSend.addEventListener('click', function () {
-    var name = contactName.value.trim();
-    var email = contactEmail.value.trim();
-    var message = contactMessage.value.trim();
-    var emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-
-    contactStatus.style.display = 'none';
-    if (!name || !emailOk || !message) {
-      contactError.style.display = 'block';
-      return;
-    }
-    contactError.style.display = 'none';
-
-    // Sans configuration EmailJS, on garde l'ancien envoi par le logiciel mail du visiteur
-    if (!emailJsConfigured()) {
-      sendWithMailto(name, email, message);
-      contactName.value = '';
-      contactEmail.value = '';
-      contactMessage.value = '';
-      closeContactModal();
-      return;
-    }
-
-    contactSend.disabled = true;
-    contactSend.textContent = 'Envoi…';
-
-    fetch('https://api.emailjs.com/api/v1.0/email/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        service_id: EMAILJS_SERVICE_ID,
-        template_id: EMAILJS_TEMPLATE_ID,
-        user_id: EMAILJS_PUBLIC_KEY,
-        template_params: {
-          from_name: name,
-          from_email: email,
-          reply_to: email,
-          message: message
-        }
-      })
-    })
-      .then(function (res) {
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        contactName.value = '';
-        contactEmail.value = '';
-        contactMessage.value = '';
-        showContactStatus('Merci ! Ton message a bien été envoyé.', true);
-        setTimeout(closeContactModal, 2000);
-      })
-      .catch(function (err) {
-        console.error('EmailJS', err);
-        showContactStatus("L'envoi a échoué. Réessaie dans un instant.", false);
-      })
-      .then(function () {
-        contactSend.disabled = false;
-        contactSend.textContent = 'Envoyer';
-      });
-  });
+  emailjs: { service: 'VOTRE_SERVICE_ID', template: 'VOTRE_TEMPLATE_ID', publicKey: 'VOTRE_CLE_PUBLIQUE' },
+  rotationStepDeg: 5,     // pas de rotation des tableaux (admin : J / L)
+  eyeHeight: 1.25,        // hauteur des yeux
+  exposure: 1.0,          // luminosité globale (monte à 1.2 si c'est trop sombre)
+  toneMapping: 'linear',  // 'linear' = couleurs fidèles des tableaux | 'aces' = rendu plus cinéma
+  darken: 0.55,           // assombrissement des matériaux du modèle
+  bloom: 0.55             // intensité du halo lumineux (0 = désactivé) — PC uniquement
+};
+
+/* Démarre les téléchargements TOUT DE SUITE (en parallèle du chargement de three.js) */
+(function () {
+  var C = window.GALLERY_CONFIG, E = window.__early = {};
+  E.glb = fetch(C.modelUrl).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r; });
+  E.glb.catch(function () {});
+  E.remote = fetch('https://api.jsonbin.io/v3/b/' + C.binId + '/latest')
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function (d) { return (d && d.record && d.record.paintings) || []; })
+    .catch(function () { return null; });
 })();
 </script>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+
+<style>
+  :root {
+    --c1: #00e5ff; --c2: #8a5cff; --c3: #ff3df2; --bg: #04060c;
+    --glass: rgba(10, 14, 26, .55); --line: rgba(255, 255, 255, .14);
+    --display: 'Orbitron', 'Segoe UI', system-ui, sans-serif;
+    --body: 'Rajdhani', 'Segoe UI', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; font-family: var(--body); color: #fff; }
+  #stage { position: fixed; inset: 0; touch-action: none; }
+  #stage canvas { display: block; touch-action: none; }
+
+  /* ---------- Écran d'accueil / pause ---------- */
+  #intro {
+    position: fixed; inset: 0; z-index: 1010; display: flex; align-items: center; justify-content: center;
+    background: var(--bg); overflow: hidden; transition: background .9s ease, opacity .7s ease, visibility .7s;
+  }
+  #intro.ready { background: radial-gradient(ellipse at center, rgba(4,6,12,.35) 0%, rgba(4,6,12,.82) 100%); backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
+  #intro.out { opacity: 0; visibility: hidden; pointer-events: none; }
+  .grid { position: absolute; left: -50%; right: -50%; bottom: -8%; height: 70%;
+    background-image: linear-gradient(rgba(0,229,255,.35) 1px, transparent 1px), linear-gradient(90deg, rgba(0,229,255,.35) 1px, transparent 1px);
+    background-size: 64px 64px; transform: perspective(520px) rotateX(62deg); animation: gridmove 3s linear infinite;
+    -webkit-mask-image: linear-gradient(to top, #000 10%, transparent 85%); mask-image: linear-gradient(to top, #000 10%, transparent 85%); opacity: .55; transition: opacity .9s; }
+  #intro.ready .grid { opacity: .18; }
+  @keyframes gridmove { to { background-position: 0 64px; } }
+  .aurora { position: absolute; width: 60vmax; height: 60vmax; border-radius: 50%; filter: blur(90px); opacity: .45; animation: drift 14s ease-in-out infinite alternate; }
+  .aurora.a1 { background: var(--c2); left: -15vmax; top: -20vmax; }
+  .aurora.a2 { background: var(--c3); right: -20vmax; bottom: -25vmax; animation-delay: -6s; opacity: .30; }
+  .aurora.a3 { background: var(--c1); right: 10vmax; top: -30vmax; opacity: .22; animation-delay: -3s; }
+  @keyframes drift { to { transform: translate(8vmax, 6vmax) scale(1.15); } }
+  .card { position: relative; text-align: center; padding: 28px; max-width: 640px; width: 100%; }
+  .eyebrow { font-family: var(--display); font-size: 12px; letter-spacing: .5em; color: var(--c1); text-shadow: 0 0 14px rgba(0,229,255,.8); margin-bottom: 18px; }
+  .title { font-family: var(--display); font-weight: 900; margin: 0; line-height: 1.05; font-size: clamp(30px, 7.2vw, 66px); letter-spacing: .06em;
+    background: linear-gradient(100deg, #fff 0%, var(--c1) 35%, var(--c2) 65%, var(--c3) 100%); background-size: 200% auto;
+    -webkit-background-clip: text; background-clip: text; color: transparent; animation: shine 6s linear infinite; filter: drop-shadow(0 0 22px rgba(138,92,255,.55)); }
+  @keyframes shine { to { background-position: 200% center; } }
+  .sub { margin: 14px 0 34px; font-size: 18px; letter-spacing: .28em; text-transform: uppercase; color: rgba(255,255,255,.7); font-weight: 500; }
+  .loadbox { width: min(360px, 82%); margin: 0 auto 26px; transition: opacity .5s, height .5s, margin .5s; }
+  .loadbox.done { opacity: 0; height: 0; margin: 0 auto; overflow: hidden; }
+  .track { height: 4px; border-radius: 4px; background: rgba(255,255,255,.12); overflow: hidden; position: relative; }
+  #barfill { height: 100%; width: 0; border-radius: 4px; background: linear-gradient(90deg, var(--c1), var(--c2), var(--c3)); box-shadow: 0 0 16px var(--c1); transition: width .25s ease-out; }
+  .loadtxt { display: flex; justify-content: space-between; margin-top: 10px; font-size: 13px; letter-spacing: .22em; text-transform: uppercase; color: rgba(255,255,255,.6); }
+  #enter { position: relative; font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: .38em; color: #fff; cursor: pointer;
+    padding: 18px 46px 18px 52px; border-radius: 999px; border: 1px solid rgba(0,229,255,.7); background: rgba(0,229,255,.08);
+    box-shadow: 0 0 0 0 rgba(0,229,255,.6), inset 0 0 22px rgba(0,229,255,.18); opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity .6s .1s, transform .6s .1s, background .25s; }
+  #enter.show { opacity: 1; transform: none; pointer-events: auto; animation: pulse 2.2s ease-out infinite; }
+  #enter:hover { background: rgba(0,229,255,.22); }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(0,229,255,.55), inset 0 0 22px rgba(0,229,255,.18); } 100% { box-shadow: 0 0 0 26px rgba(0,229,255,0), inset 0 0 22px rgba(0,229,255,.18); } }
+  .hints { margin-top: 34px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; font-size: 15px; color: rgba(255,255,255,.75); }
+  .hints span { padding: 6px 12px; border-radius: 8px; background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  .hints b { color: var(--c1); font-weight: 600; }
+
+  /* ---------- HUD ---------- */
+  #crosshair { position: fixed; top: 50%; left: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%;
+    border: 1px solid rgba(255,255,255,.55); pointer-events: none; z-index: 1005; display: none; transition: transform .2s, border-color .2s, box-shadow .2s; }
+  #crosshair::after { content: ''; position: absolute; left: 50%; top: 50%; width: 3px; height: 3px; margin: -1.5px; border-radius: 50%; background: #fff; }
+  #crosshair.hot { transform: scale(2); border-color: var(--c1); box-shadow: 0 0 16px var(--c1); }
+  #tag { position: fixed; left: 50%; bottom: 9vh; transform: translate(-50%, 10px); z-index: 1005; opacity: 0; pointer-events: none;
+    padding: 12px 22px; border-radius: 999px; background: var(--glass); border: 1px solid rgba(0,229,255,.5); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    font-size: 16px; letter-spacing: .18em; text-transform: uppercase; box-shadow: 0 0 24px rgba(0,229,255,.25); transition: opacity .25s, transform .25s; }
+  #tag.show { opacity: 1; transform: translate(-50%, 0); }
+  #tag b { color: var(--c1); }
+  #paint-hud { position: fixed; bottom: 14px; left: 14px; z-index: 1005; pointer-events: none; user-select: none; display: none;
+    background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); padding: 10px 14px; border-radius: 10px; font-size: 14px; line-height: 1.55; }
+  .glassbtn { position: fixed; z-index: 1050; cursor: pointer; color: #fff; font-family: var(--display); font-size: 13px; letter-spacing: .2em; text-transform: uppercase;
+    background: var(--glass); border: 1px solid var(--line); border-radius: 12px; padding: 14px 20px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); transition: border-color .2s, box-shadow .2s; }
+  .glassbtn:hover { border-color: var(--c1); box-shadow: 0 0 18px rgba(0,229,255,.35); }
+  #contact-btn { top: max(16px, env(safe-area-inset-top)); right: 16px; }
+
+  /* ---------- Croix tactile ---------- */
+  #dpad { position: fixed; bottom: max(22px, env(safe-area-inset-bottom)); left: 22px; z-index: 1040; display: none;
+    grid-template-columns: repeat(3, 76px); grid-template-rows: repeat(3, 76px); gap: 6px; }
+  #dpad button { width: 76px; height: 76px; border-radius: 16px; padding: 0; color: #fff; font-size: 28px; display: flex; align-items: center; justify-content: center;
+    background: rgba(10,14,26,.5); border: 1px solid rgba(255,255,255,.35); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); touch-action: none; user-select: none; -webkit-user-select: none; }
+  #dpad button.active { background: rgba(0,229,255,.35); border-color: var(--c1); box-shadow: 0 0 18px rgba(0,229,255,.6); }
+  #dp-up { grid-column: 2; grid-row: 1; } #dp-left { grid-column: 1; grid-row: 2; } #dp-right { grid-column: 3; grid-row: 2; } #dp-down { grid-column: 2; grid-row: 3; }
+
+  /* ---------- Visionneuse plein écran ---------- */
+  #viewer { position: fixed; inset: 0; z-index: 3000; display: none; align-items: center; justify-content: center; background: rgba(2,3,8,.92); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); opacity: 0; transition: opacity .35s; }
+  #viewer.show { opacity: 1; }
+  #v-img { max-width: 92vw; max-height: 82vh; border-radius: 4px; box-shadow: 0 0 0 1px rgba(255,255,255,.12), 0 0 60px rgba(138,92,255,.35), 0 30px 80px rgba(0,0,0,.7); transition: filter .5s; }
+  #v-img.blur { filter: blur(10px); }
+  #v-bar { position: absolute; left: 0; right: 0; bottom: max(18px, env(safe-area-inset-bottom)); display: flex; justify-content: center; align-items: center; gap: 14px; font-family: var(--display); font-size: 12px; letter-spacing: .25em; }
+  #v-bar button { font: inherit; color: #fff; cursor: pointer; padding: 11px 18px; border-radius: 10px; background: var(--glass); border: 1px solid var(--line); }
+  #v-bar button:hover { border-color: var(--c1); }
+  #v-count { color: rgba(255,255,255,.65); min-width: 80px; text-align: center; }
+
+  /* ---------- Contact ---------- */
+  #contact-modal { position: fixed; inset: 0; z-index: 2000; background: rgba(2,3,8,.75); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; }
+  #contact-box { width: 90%; max-width: 400px; padding: 26px; border-radius: 16px; background: rgba(14,18,32,.85); border: 1px solid var(--line); box-shadow: 0 0 60px rgba(138,92,255,.3); font-family: var(--body); }
+  #contact-box h2 { margin: 0 0 16px; font-family: var(--display); font-size: 17px; letter-spacing: .18em; text-transform: uppercase; }
+  #contact-box input, #contact-box textarea { width: 100%; margin-bottom: 10px; padding: 11px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.06); color: #fff; font: 500 16px var(--body); }
+  #contact-box input:focus, #contact-box textarea:focus { outline: none; border-color: var(--c1); box-shadow: 0 0 12px rgba(0,229,255,.3); }
+  #contact-box textarea { min-height: 96px; resize: vertical; }
+  .c-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+  .c-actions button { padding: 10px 16px; border-radius: 8px; border: none; cursor: pointer; font: 600 15px var(--body); letter-spacing: .06em; }
+  #c-cancel { background: rgba(255,255,255,.14); color: #fff; }
+  #c-send { background: linear-gradient(90deg, var(--c1), var(--c2)); color: #05060c; }
+  #c-send:disabled { opacity: .6; cursor: default; }
+  #c-error { color: #ff8686; font-size: 14px; margin: -4px 0 10px; display: none; }
+  #c-status { font-size: 14px; margin: -4px 0 10px; display: none; }
+</style>
+</head>
+<body>
+
+<div id="stage"></div>
+
+<div id="intro">
+  <div class="grid"></div><div class="aurora a1"></div><div class="aurora a2"></div><div class="aurora a3"></div>
+  <div class="card">
+    <div class="eyebrow">GALERIE VIRTUELLE</div>
+    <h1 class="title">ATELIER<br>DE LA RUE</h1>
+    <div class="sub" id="mode-title"><span id="count"></span> œuvres</div>
+    <div class="loadbox" id="loadbox">
+      <div class="track"><div id="barfill"></div></div>
+      <div class="loadtxt"><span id="load-label">Initialisation</span><span id="load-pct">0%</span></div>
+    </div>
+    <button id="enter">ENTRER</button>
+    <div class="hints" id="hints"></div>
+  </div>
+</div>
+
+<div id="crosshair"></div>
+<div id="tag"><b>◈</b>&nbsp; Clic · voir l'œuvre en grand</div>
+<div id="paint-hud"></div>
+<div id="dpad">
+  <button id="dp-up">▲</button><button id="dp-left">◀</button><button id="dp-right">▶</button><button id="dp-down">▼</button>
+</div>
+
+<button id="contact-btn" class="glassbtn">✉ Contact</button>
+
+<div id="viewer">
+  <img id="v-img" alt="Tableau">
+  <div id="v-bar"><button id="v-prev">◀</button><span id="v-count"></span><button id="v-next">▶</button><button id="v-close">FERMER ✕</button></div>
+</div>
+
+<div id="contact-modal">
+  <div id="contact-box">
+    <h2>Contactez-nous</h2>
+    <input id="c-name" placeholder="Votre nom" />
+    <input id="c-email" placeholder="Votre email" type="email" />
+    <textarea id="c-message" placeholder="Votre message"></textarea>
+    <div id="c-error">Merci de remplir tous les champs (email valide).</div>
+    <div id="c-status"></div>
+    <div class="c-actions"><button id="c-cancel">Annuler</button><button id="c-send">Envoyer</button></div>
+  </div>
+</div>
+
+<!-- Liste des tableaux : taille réelle + miniature floue intégrée (affichage instantané).
+     L'ordre = ordre alphabétique des fichiers : NE PAS le changer (les positions enregistrées s'y réfèrent). -->
+<script type="application/json" id="manifest">[{"n":"1000014781","w":654,"h":862,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABUDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDsdY1JtLtlmW2M4LbcBsHP5VPZ3Tz2KXFzCbZmG5o3bJUe9RalZ/b4EhLlVEis3uBT7ZS9vtuYwWBIO7DbsE4P5YNN2su5Kbu01oWchgGByDyDRTSaKRRG5Ow4OPpTgABxTR0oZQSCRyOlAA5xiimydqKAP//Z"},{"n":"1000014782","w":729,"h":954,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABUDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwC/r2uzw30yQxyReXIYywnOGx0+XHFZq+Ir3IJklx/11PP6VPdSsPEbOOCL1j+Wf8Kk1G8mn0ueORlIwpxgf3xUu17GqjodN4b1BtRtZGaFovLYLlpd5bjPoPWiqPgkk294D0Ei/wAqKuxjLc5zUpCuszSxoHKXTttLYyMkdagnu3kieMWe3eACxnDYGQemB6V6GLO1kJZreIluT8gpRptn/wA+8WfXYv8AhRZXua+1srWMPwO6vbXgU5xIv8qK6CK3ittwhRU3cnAAz+VFMyep/9k="},{"n":"1000014783","w":693,"h":862,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABcDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDOt9Oge3lNxIySgbkH94Y/xpU021OnyMZn+2qC3lDpgEZzx6Vptb/KWIG4j9z7j3/HNPVImhQRp/prDaX3Zyv0HHIq3ZvQzsrGBbxFJVbPT/CitdY7YNt3FGXhgfWituRHM52dmWVuVeMqOcY5NQySKF3NITPnOQeRjp9OKzWJ5G481ESTkZOPrWSSbNFKysar3xZdu3jPXvRWUhPqfzoqvacuiRnyXP/Z"},{"n":"1000014784","w":743,"h":920,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABcDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDoby58uHzofl3MI1T+8x9h29arQ3EtrGVu5fNlbnMPTI6+lNvDbtAblIhsJ2AEchzwCPTkjmqv2hdN/cao3mSSfcVfmwfrXKl7t0baXszeJMz4hUxbRlu2fyoqlapIsCQJKxmQZkZ3yX9896KakibeZXngS6XdbKqwL1OPukc5APpwfwrOtghVzrJF3Mu54nYZ2qD19uSOKuyTvbTC3hwInxkdc54NF032OZGtwFJUg9/51EZOKsW1clQF44/sjbplGZXPBJPvRUM8htCv2cBd/Xv/ADorJ7lLXY//2Q=="},{"n":"1000014785","w":726,"h":878,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABcDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDcjhtzZhjj7uS2ec1UuVtkYKjsHxkqx7U2PCeYY9pdR8pI3bT64qnbgPelpW3O+ck8nH/66vDUeSUpObe5lUm5WXLYnLIDxRSpEmADu98iit6WIhUjzbBUpShKxmXdykf747sjrtPNJaXvmgyKpAbgLjpio3QMGDcg9j0pFRUUBBgDsK82LszuXJGLstWXWumVecZ7EelFUwMtyTRVTqXehCirH//Z"},{"n":"1000014786","w":715,"h":882,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABcDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwCSO4AXBUA+uafudTmYbB1Hcn6VH9lZYUlBBV8jPuKQxSyyKpfJPyiuFM7LQtqEs+44VdooqxqiRx3uyMDaqKBn2FFO5muVq5mQamo0o20wJJJI29QexqK2LLbvdXL7YxwgH3nbtj0+tVrlRHFlepOKZES6DeS2DgZ7V6NOjGMXNnPOo5JLsPmupZ23EktjBJop6IOTzRWXNGOiRKp6H//Z"},{"n":"1000014787","w":699,"h":864,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABcDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwCLR7M3k7F1JiXqQ2Mn0rWGnwTLII4jGSP3TFjz9foayNDu9ssNsyPtlnz5gbAGEJx75rr1CshCfMv8LZ+9+FKs5KVr+hlh6cJUuZo4xnaKZo5RtdCQw9DRU3iBSl1HJIipJIMDa2QwHf2PIorrirq7POqvkk0P0O1N5pkkccxgnS4DxygZKNjrjvwSPxrXSbZqEdoYZoZGQt5gYFSR/D9cAmuIl1G60+xl+yybC7ISe4wc10fiO5eGLS9QiCrcl9ocZ43jBOOn0zWFempzipHo4SdqWhqX9nbXGWlXdIV2726gZzx6UVBqTtHZylWORgZP1FFbRXKrHNWlGUrtH//Z"},{"n":"1000014788","w":712,"h":889,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABYDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDYe+QSiFTjaQp4x2znNJvnEw3XKeUTjOzn6VScwLMnmOBLKdqEA5JAzU0wSRUBl6Nk570RlY7JUWy1LcxwsC29ww9QAKKzbK6u3ubhbuCKOBGxCy85H+cUUaB7KTMW9kdryydXOFlJPPbbUsl8FkTcxCOOHAJAPviqjIHdHJIKHIx78VJuZfusQfY1z8zPU5dHbcuGd1JG9SM8EHg0VQYlvvEn60UnNjVran//2Q=="},{"n":"1000014789","w":983,"h":760,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAWABwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDdjZ54ZpzK6Ro20FRknHU81TaW/Mymz2yRxvhmkYKX6cY/Gq02sJaXi2SsAg2jbjnmnanex2f2eOJlUEEnPck1yu8Y7X6HoL41Lo+huyxBxjeY29VNMjhnAIW63DPdapzTXMzb7eEvkc1btJmjgAlADnlhnpVpzpe7BNo5I1W4p3MOXSrO91BZ2QrMTkuD3A44q4sUtlOqtsdJOMnrn8aKK66jcU1HawqDcnFstNgo6hQGcdRWML0ktkdDiiiuLJKs6rnzu9rBitI6dz//2Q=="},{"n":"1000014790","w":1004,"h":814,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAXABwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDnlLE8ZqzEkR/1khHrjtTItqs4dlyq5wTRyQpK54yM8Vo3zaI3GS8N8pyvY0wMfWtK1hSSFneLOM5JP8qoXKiKdlHTqKuMk9OxDIDeRNNLIVKp0jAH3vY1f0ry9QifzQUmix06MPX2oorKSsnY56VSTkiwbW5t1lVpwEkJKoo+7j3ps1iZ2DxsuNoBznriiinDSTNm9Ef/2Q=="},{"n":"1000014791","w":784,"h":668,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAYABwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDoLx3KbIRGJO249cdapJdRnMc4EUynlSePqD6VW1FrgamrFVeFSHVvMCNGMYb6j1zVWWeWaOIxgTHBVAMKeDyfc+nauanRel9t/mXKas7GrFeLI0iRKWSLAkdVzjpwO59a1oQhiUqwZSMgg5yK5OJ3cm5inaBUIEhjUdSByRwTnP8AP0rqLfy7eFYuy9O/FE6aT5d79FuJSdr7GHNYJc3BaSV1TI+VXzvHfOenPYelT3FsJnDxTMjYwVXH8+1FFDbV1fZXBd+4xbRyyme4Mu0j5TycD1PGa0RIn/LTG6iipd5tRva6vpuPZNn/2Q=="},{"n":"1000014792","w":816,"h":669,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAXABwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwC7ZXFo7XiXcMUG8kFT16dCP8Krx3kUdpbJLZqkiDeqnjI6ZH1qrJa3guGkCRyyOCjupx9SfTiiQNPKkSIiqI1CnfnAYngH/vqvFmoTV7+uvyPSi3GWxqNc20+pm50+28yQptcEDgAdvc9Kh0+7lEL+VpLFfMPQY59Kr747fUN8dxDiR/LVumSMjn06VJYHU2icpeoB5jcONx69/T6Vo5xd3pbTuQou1iha3EMF3Paozm2CuQ5+8COcdeefWrNvFbCygY7lV2zvHUnPzcdsfWiinXoRSuuv/BLo1ZufK3sLc2lpJfTWaKVXyP3a4+UP1znr6VU02zs5YGa5nl8zeQShIBoopwi1C13siOtz/9k="},{"n":"1000014793","w":777,"h":635,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAXABwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDS1rUlsZYJY4zJdNmV13cKR1GByKti+tvsKaqJo0unXLIzDAPQjFYniXzbeaHU7Zz9pZT+7xnB/i47AcfWsm50HVXmS7ZFneQeYwLjI9QR2roUE9Wzqsraf15enmdFLq9uLkXKyq1ztyyBScHp0+lX4XtL2Jbm7m8uSQZxnZx0Bwa5jfGkEOqJIqXqkAwEcHjHA69Oa3dItIrrT0l1J/ImYnEeduFzxwamSSVxzgoq6f8Aw/l5eZZ1K0MfkakiGWWR8lCQAoOCfr0FWDbrDB/aSjJZceUTxg/L169KKKlN/iZ3v+XyIBZRNGuq+UnmxL8sZAIwvAGetSpZjVh9pmYxN9zamCOPrRRSk2k2ujBtpXP/2Q=="},{"n":"1000014794","w":791,"h":678,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAYABwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDVDk44pwB28jjNR3t3Z6Za+feSBEHQd2PoB3Ncdd+MJ5pyYkEcYPyp1x9fetZOxyKDex3ITDYIHIzx2qQAY9K5Dw74iku9Wit5sYkDAH3xn+ldhuWqg7rUHGz1KlzaW11gXVvFNgcb0BxWbN4d0WTlrGNPdGK/yNFFXZPcm7WxVj8O6XbXUVzatcRvE4YYfcOvpiuhUnGV5HuMUUUWS2C7erP/2Q=="},{"n":"1000014795","w":757,"h":672,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAZABwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwC3baotnAljfu8zKu2NT1Y9l9snjJ6VlaZqVzDMLj7MLWOIvAVQnHUttb8M4PtW7qdppuuWVvd2KZm249M/7Le4Nc34fb7XZXNheStHPJ88Uxb7n97jux9+1NQlyuN3fvp3LjKDlzWVr6LXstzc1JLLV7GB7SZ/tLEnG0gcD7re/pT4tWKRrHdSGSSMbdxODx61ipDcaZr1tZm5+Q/vQzc+Y23bt+uOK6i5stIv3W6RWPmoCTGdoP1Hr61TjJvRtLXoiZWhHZNu3VmP9ouNA1a3DW5e1mHTH316cehFRQ6WItLlu7UGXBJcoMnYMAEfTGcVu+Kv+Pax/wCup/8AQDU3hr/kFSf7zf1rn9y/sOXS19/M3Uqij9Y5tb228jgrXT7/AFi7lu7kmcLypEgRs9vw+la4u7rT8208bxyJjcGbrwOferHh3/Ww/wC7/WtrXv8Aj+T/AK5j+Zq4clWTbWza3JrVatOmoqW6T2R//9k="},{"n":"1000014796","w":751,"h":751,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDQZDjHHJpvk8kkn0FWFAkQBj/Kq9zd29sVEx2k9MdG+lVObjrLY5aVB1NIbj0iX5Ku28SmMkgdao215Zz8Qyjd/dJwam+0YJ+U1tFqS0ZnODpytNWZnC+VOwqK/kt72zaKZSO6sOqn1quUUsB60zG4ck+mBXX7GElqcca9SErxeqM/RrAvfl7tcRwnpn75/wAK6o3CE5xnNY8cagsoJHHUdasx8Ljrjua5lThT0idlXE1cQ+aoz//Z"},{"n":"1000014797","w":745,"h":611,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAXABwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDUDKOhBNKCpzyOOtUWdDCpV9s24j2x2NVvNkink+bJfHT19Kr2d9DL3lra5pyyrGuQoY5pPMUjOAPasuW6ZBy2TnGF5x61AbolmKMwUnjmr5ES+dbo0ZR/aF40gHlxgAH1/CoZW8slYIwVAILHrIPQ+lFFZyfLBNHZCKsvMqW8o+0iVrb5UORGCMZ7fhmq7CV2LMnJOTyKKKc5O+hk1fU//9k="},{"n":"1000014798__1_","w":765,"h":643,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAYABwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwC9Mn2OXemRDNn6Ke4qeO+eW1mMSlgU2RjsT2GaZqd3GtrFabVZ3AZ8jOB/9erLyo9pAicAspwO3NOEqrhGVRXR0U4whOXK9SPTLwXG2Ofy/l4AIAIpmpxxTXjNFJkL8vHPNZutv5TMdPkUndtmYfw/T+tFiJGtVIDY9hTw2HjCnzuVr9DKWIm5txWndFTUdLv59Ua5iZfLYL0k9BjpU9xcNFA1vG374bdzj+H2+tFFcOBrSqQdSW6NK8nGEorsW7CGPyyJNjBxg+9X1SOKNI1ZdqrgYNFFc7rzlVaexEHz003uf//Z"},{"n":"1000014799","w":775,"h":646,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAXABwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDQsZVuGVLiNS2AQ+OtF9fWKXrafNaGTAByMAc07TVVbYTODtRNxOOw601brS768+0RpuIGMtHyazp4ZKpzau5tRlGcLtCpp8K/vIi3ln+Fucd+tWh5MXylgM84qmLs/wBrbN2YtmNuMBc/1ouc+ccVz42q8E0ox31uZ0XGs2k9i7BGDbJEwysindz2qW20jTLWIskLKACT85NFFds5S9rJXLUm6afU5u18yS8eYLt3Nkc9PQVsEeZhmXBxziiitcTh4Vkoz2MVUaldbn//2Q=="},{"n":"1000014800","w":677,"h":847,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABYDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDRtUtGBLLtIHLDIxjrVqG4MkBOn4mJGFaQEDNVZZLW3gjhnP76ZSEA64I6/StHSLaK2tQFkJXO4lsConJSpOdSNunkXKEYVOWOvzK1tHeEsL4Mr9QOgx7UVuqVkczY6gKPworzqmWKpLmi7LtYW2hwN9pd1e3bGGdZWRAGzw35fj2rTtbaa1sCrSIzgBQCTyaz9OmkE5kDENnOfeujlRbuGOSVRvxnK8V6uIoSppdevzCOJc7trUt2t0ViCScEd/Wis8DPzEnI460V5jzNvVRN1Rutz//Z"},{"n":"1000014801","w":825,"h":613,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAVABwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDnYYt0DuQQw/hBzxWlHb2iaQJxtlcH5hH1TccAH15/L3q3AsEOjMoMkc0jDK4OCu4DnP8AjRPZQw+QmwwmVwAJGHIz3XPrR7VrWXQ3tFuyJdJS9Fm0scjm2icnyl+8+Bn5fTPFY1zqM93O0shwScBc42j0q/qU+pwmQsZbfy5N4kQgbwBtGQOg6cUtvZafJCsks2XbkkvtP4jFarlcvata7GbXQrpcSOfNVihfDbV+6PQYPFHiGaZtMgvWcFo5NuCoyTjrnt9KKKzrU4+67F7LQILhrzV0tnz5U0SySKWJzhQ2PYZFW7vSxFNiKXCMNwDLnHtnNFFXT0pr0X5GEpNS0P/Z"},{"n":"1000014802","w":635,"h":849,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABUDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDXtkhnsSwaM3CqTtRwSw9SKtCJkjU3JYAdAnVvasmQzqqwafLD50XSOVdnyngkhevXrUNiLmR1jupvKuYgXXy2IA4xuBzjvWLwdKdSSaXR+m5pSj7KPMvwNO51FY3CR2iv6mVT+goqSYeUFMge4ZhncCDiilGNFKyml5aIShN6uT+4z7R4La4ZWgkYuNrvJne49c/WphaQRXDsZFkQj5N5zkH727NUtFvJdWYG62gJGGxGNoY5I5/+tV7WooxYNJsG8FFByehYA/zreMdU+oUpWd5bFVvJLFLZJooV+6pVgPqPaipp7iSOGMLjqw/lRWTm6XuKK0I9hUrfvHLc/9k="},{"n":"1000014803","w":587,"h":720,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABcDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDZjDFypC7f4SDyacUQAkkgCrEcUK26vGSzNhT+P8qozG1uIzHdlowudwz154PHX2rh+qOyZ1+3i76DnT1VhkZGfSir04tltlDMcgDb82WoqqmH193Yx9vF9DnbO4nuJDh1Cpgkk/lUt7d20E0W5PMEa4dFOOe2fpXLpcTQPujchh0NRCWTdu3nJ6mvWhTilY86VeSVo7m3/aLyHG7FFZIcyEcBcD+HjNFZypRTsSpyauf/2Q=="},{"n":"1000014804","w":1195,"h":896,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAVABwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDe3+WPuFvpTWulCghSfX1/KkvIw8O35sZz8pxVcoF+YZV2HAJz2xXJKzqPX+rf1p8zWKutf6/ruWoZd6sTkgnApx69KgtZN3GDjdgE1c2iroXvJv8Ar/IiWmg/7KCeHIpGsQwOX6/7NFFaOlCUrtaiTaEjsfLGBKTk5Py0/wAkD+I0UVUYRi20txN6WP/Z"},{"n":"1000014805","w":690,"h":724,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABsDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwC5qmp3z3Numnl9nmkHy+QV9WPY+xxiq9/JrN/5Z0m6KQruMkjSKCuPUY6fzzVy9KzamVLbPKA8zA+8MZ5PpWTFcQbL0eb5Ikb5XH3fbIxwKxnUd7JaLsJ1FFrzutf6+RZtb67mNv8A2i4V2IELRMVWb5uSVNdByOK4qWzubho9RluEkhiyCuDkjpwOBiuj07U0ksISY7mchdpkVBhiOM9failNSlJJ3N0m4p9SLVAktxMk8gjdisUAzjqMk8f54rnrZ4oWkF0pEDKUYkfdOOorQ8QyvJqMas3yhR8o6dTzXNTRmeZjLLI2GwMmtJK6lfr+GhzRpqpVst4/jqbqvONMSSGS0ezCchgdw5P8I6+3epdIO7TkLNzuf/0I1lWM8ltPAsZXKDYrFQSFJyRnFdOlpDGCApOSWJJ6knJ/U1jRTjKR6MUo6/I//9k="},{"n":"1000014806","w":692,"h":834,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABcDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDvGJzheT70xnKEBiuSeOcVEV2O8sZLMf4ScYqFjJI4dPLdwDtUsdoPvUFtdjQjJOc9O1FMj4XsCewooJK8qFnYmQlWXATAwuO9V2QQOju5JPG4nGOCf6GpBKwbsfrSiT/YTrnp3oGx0ASVI51ckFcj3FFNErAcAY9KKVkI/9k="},{"n":"1000014807","w":693,"h":852,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABcDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwBur37WNtvSIyOfujsPc/pVNvtc0Uxt7jybobfNUcqGxnA/CrFvf2l8qMj/ACmUKFdcHdjIFJbwN/aczqSqkAllYfNx39vT6Urub8jZ2Ltn5v2WIysHkKDcR0JorGt9SjeSWG1LW48z5dg3Bzjnjt68UVzuNRN2kHNHsU7fTo4r9tPDGeQyK5bBAiUDOfr2rXt0a1uPsnyiHARHb77ZBJA+mKtR2cSyRXLbnnAI8xjyQap6zcPCqSIF3K7YOP7vStppxVr63En1F0VY3mu7ghC6yFAy/wB36ds/rRSaQiprmowKoEbokpUdmIycfnRV/VqctZEqbWx//9k="},{"n":"1000014808","w":710,"h":863,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABcDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwC3KqQMobqxwijqx9BTZZhLCpWMqA24shGFA65Pf6U/VLZpWhSOQxs+SxOcbQP06iq5aeWWS2to4g8eR83GcY5+nNY0LOKO/ETcm+Z2tsWsKCcbTjiiooGh/exQrt8qQq4Pr6/jRW6gjupy54KTE1yGa6ijjgY4RgJjnA2nHB/LNXLgebZEmMj5Ay+v5VIAPPA2jEoIcY4bGMVBcyN5scCnYsudxU88enpWXNZvyPGjG6iu5mWwhtJVQyg7wVGeowSefwoqlriqt+FVQBsFFaxlzJNG8MS6N4NXsf/Z"},{"n":"1000014809","w":726,"h":865,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABgDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwC74lRJ9QSKW4kigtBG7EZYhnYjP5CsCI6dPfOJrJERFYYjdiXzxuJJ69+lbepTINZvhKrurg8cf8slDDHPqear2d1osOpS3iSyyqwJRGDEscA8nGMD/wCvXTJXs0VTlyxaZZ8Ezuk89mWJjxvTPqDg/wA6KZ4XuM6xLvGHkdmHGBggnjPPUUVL3IqbmZeSW1602rPkEOJTEFBZVbpn1GBjPYmqNy0BvU+y7VMyAMoAbBIz+ePwrNUNFzG7AsMHn8akaV5PLDEZiBwQME9+T3rWr7jsVQXOi/Cs2pXcENvue6YqN2cCNQMDJ9e59MYoq54OAk1ou38MbMAOgJxRU1INPcSxGlkvvP/Z"},{"n":"1000014810","w":717,"h":880,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABcDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDoXNRLIvJb5R1ye9Vb15FMhBBjC/NwTjNNgZTHF+8KMW6r3NaqOh3OOlzTjIYZBBHtRVe3mUu8ZGJF5POfbNFS1Yki3bWMLIzB8sWAyDnsayoopQ+2RdsbMAobtz0rVLnB4FZ98xa557R5H5VpFmkJWdl1NOOKNH3ouDt29e3pRTRIT2FFZt3IR//Z"},{"n":"1000014811","w":762,"h":910,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABcDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDXup547dJYNhCuA6kZJB44/nSQ3s8V1AitGyzyAPkHjjHGOh471V1CZ4hHGqMwYr0926/gAfzpupXb2QhmijLjzB5mzAIQd/euZRldI1o006d2dHI2F4oquJxNCsmMBhkD2orVGO2hl30CTw5cBvLIYAgnODntSRRIzIvBO7uOmP8AP61OpOc1DFxcuoH3QMGpl0Y6dRqLRfLKDgcgDAzRVdOpyc/Wik5kxP/Z"},{"n":"1000014812","w":795,"h":661,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAXABwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDo1kxTtzEZVWbHoM1yq+JbkHIgi/M10fh7VJNRtZZJlQFH28Z9M185h8sc3ao7f1/XQ9KvTqUo8zRbaTbhe68H60wyVzNx4jnjuJEEMLhWIDcjPPWov+Emn/54RfmaU8NVc20tBrC1LbGFkE4B61qaTqc+mLMsaI4lHO4njj/69FFe0lZ3R3N+0jyyWhmMSzZ7mk2kUUVmkOc2nY//2Q=="},{"n":"1000014813","w":825,"h":684,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAXABwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwCvbwm6V1VmVgpKsOm7sD7VKtjdNErpGrEsQQD0pNIuYozJHIyohGS+enbFXFu2s4rYq/mwzEAO3G3/AOtTr1asXLl+Rc371rlI2s8blZQVIUHgZwScAH8jVZ2YMR0x2rbmuViW6aV1LFQREDyR2JrniZJsOoPPXArXCVJTjeQ1poW7bUba2svISBy7DDnjk/Wie6trmBLaQvEqYKNjOOOhx/SiitJxVmzGSsmySyulKyRmV5IljDEleuOO5z0qo92Ekb7DxETnDDv3oorGhH3mwhK8bn//2Q=="},{"n":"1000014814","w":746,"h":887,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABgDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDoNa1mTTZLaOEKzyHLBum3I/Kn2XiCK6v1tSqjzVDRsrZ7ZwfQ9az/ABHbxNbNevv8xE8tNvHJyef5fjWdpUVx/ZlxLO1xG9o/mQB2wg4zyO9ZanaoxcbnbmSiuc0jxDHfSi2lz5zZZCBwy+p9DRVXM5QcdzC8T6i/9sR2k4b7HHtdkX+PI71RgmMqN5auY1UEFyziLAPJA4Oe2emK0/FqI8tu5UBsMufUcVgwfuZE2c+Y2w57A9celHU6ErQUmbHg+7Md61sCTFIzBSyDkgZHPXPtRUXhsK+oC1dQ0BZ2MZGRnHX9KKDKeur6n//Z"},{"n":"1000016105","w":2790,"h":2349,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAYABwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwCxc33zkEDr6VVe6jYZCp+QNVNSZ5Z32YEaHAOepzVQQPI7y+S7KSY884XHsO/vXXPE8srRjc9FSinZIfdX6KzCJEdkHOB0PpT4bhnjzsT8BVKPC3AR41VCQScfeIJwfyxV2GNY1IQcFiaVCcqrcnsaU1zavYusiC4UmPChmJwOM0kJkS2mRQSEyUPrnmiiuiMVuKGmxQnA/s4EjMhHfg5ohuEWIBjz3ooqLKO3Yps//9k="},{"n":"1000016106","w":2965,"h":2575,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAYABwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwC5HJa3NsruI1bp82Oayb+zj+WS2ZSrDIxyDTILyOF4isREqZXccYIrXsTbnT3CRGIsCMZ+7u7/AENcfJKjO/Q15Iz1RzeSh2uv6U5ec4wOa2pdLaWFW8vEnO4L0/Ltxist4JbZzGYt3fNdUa0ZI5503FjQv7/dtDANnB6GtG1u5rZGRFjELMGw6FmGO2c9KKKmrq9Tpp7F631RHOyRipA4yMDFWHWCYhxIg46GiivNq0kpaM1eq1P/2Q=="},{"n":"1000016107","w":2701,"h":3201,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABgDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDWW5LSOXzGV4Gf4qRbss2c88ZAqIn5skEn/wDXSeY/mPiMtjpgipuUlcklmJ35PODRVOMy4lEmSGdirls4B7UU7jasSglgCpIOOtNiMgOWAz69zUpjViEI4I61HLiPhR271IkRv8qNt7AkD3oqN5DhhgdKKdxs/9k="},{"n":"1000016108","w":2394,"h":2790,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABgDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwC9s3j771UuImUEs2B7nFXop0UYE6ce+DTHks3Vo55VMbfwkcVSk0zJQT3MS5Rli3bge/rRVmWDSU3bbsowX7vmjA/CirU9NS5QhfQ0JbCKJR9olhj7hRljVSaC3Y4RFkJH8QHNVTcOXJYKTyeaBIyWplGN23Ofesb9SRLyO1s7djsh2f8ALNFAJY/WiseRnuGDTOzt6mihyZryLqf/2Q=="},{"n":"1000016109","w":2572,"h":3055,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABgDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDZvLl4YHljiaVlGdink/Sq8s0ssIMQ2yAhjGzdR3GRUhesKz1X+0LmZfsxikijZ0kTllx2I9/SuSi1JbbdTrmrM24JpprUPLGY3ORj+R/Gis/Rpn8qaJpRIqEMp9M5yPp/9eivQPNasye7uxawGVkd8HAVFyahkdSjyyFY7Zhl12bS59z6VfKLVa4jV1AbPDBh9RXlUakVZW17nrSTIdPWBbNmgDDfI24sMZIPb29KKtYGEUAYPFFeotUeTLc//9k="},{"n":"1000016110","w":2534,"h":3013,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABgDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDsdZ1VbRBHGJDIx2/Jjg1zR1bxBFKXN15yNwAEUfN/dx79s05omd3incNeu7+U8jZcZBJOB90fw/h71FCsNlaWkN/cGWdpd8js+7bwcgH0GBzQqaUbHdBRir218+nr+h0ej30kqm3uSPOYl1bdkH2/DFFcfpt+bfUbe7uvMKSMLeNAc/Mehx9MfnRWVWir33M6kOV228mbniO3+zXIv4i7PhvIVc5EmPQdQcDj2ridNujDqCya0rtKdyooHOGBB4X3Ir1maziluIJm3b4GLJg9yMVKVVHBVRn1xzUQxPLGzX9eX6lxq2W3+XzXXyOK8N6cZ5IDeTLMunPmMBcAuRw2e/H9KK6uzsoLa1VIV2j7x9yKKxqz5pe838iJtOV1+O5//9k="},{"n":"1000016111","w":3031,"h":2533,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAXABwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDobuIyRQsWGWc4GOgHWmR3SC4aG3xIFGS4Ix9KuFNwRi20oxwPfrTba2E155r4JddgV0yRySTXPBJy9sn3/P07HpudlZ7ED37x31rAVYCZuSB2q7PPKJmEDt5fbd1qOa1h+028k67iHCqcnIJ6VqLGCOma3pVfaSk0tEYycU7nJXl/eyuWtliQscguSdv4Yp1neXSIRIxaY/xZ/wA4oor0Y04KPKloc3M+5oG6l2JIIy7rjjIAzVs6lcoAGtuozw4oorOFCnBuy3CUmz//2Q=="},{"n":"1000016112","w":2520,"h":3019,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABcDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwBmlx2Mqr9pijlYMVcO5yMnjAHUev0rWt0023YiB4d55GFUcfUVmWcMVvF57uV2n5mUfN74pITa+WkjFEuT8pCP0XceeR14zXPKXtdW7I7PYuGit5+RuRPPufftC5wuOc/WisOO8exu5DBKZo2JJLcBvfHaiuOUIN6S5V2t/wAE5HilfYriaCRSvluV75cACq13NAsYa1kKyBjkEZBUAd/rmooUV3+YZAPT1qxdXvmR+UbW2VAMAKpGP1rvWGiloaUcZKTaq6x6lbUGmhjg+zamk4lTfIojACtRVBl2vwTRXO1yuzPYp4LDSipcp//Z"},{"n":"1000016113","w":2496,"h":3013,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABcDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwBmlxWEqIbiGOU7trh3IYEnjCjqP8K17ePTrdsQtDv6gBVHH1rLs4IreITtIVCnBdR83vimwi18pJGKx3JwpVXBAXcQDg/TNc8pe11bsjs9i4aK3n5fM3opJ9771VV6LznP1orDS8exu5PKm8+NiSSeAx9R6UVyThFv3Zcq7W/4JyPFK+xWE0EilCkhX3YAD8zVe7lgSMNbSYkDYIIz8oA7/XNQxIrvhuQD09as3N2skflfZLdUAwNqkY/Wu5YaKWjNKOMlNtVNYvcrX73EEUHkahBP5y75FWMDYfSis9l2vwTRXO1Z2Z69PA4aUU+U/9k="},{"n":"1000016114","w":2544,"h":3116,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABcDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwCzeA7mf5/Xp0rGuCzPtDnLDIHPSupN1EyYZCa5K5HkaoqwykKjDZkZ2gnOK3eJS2R0YfDKs2r2srkRgl3dz+NFbc13E+T5YH0WitfrETjsU5Zma6tG6hGYnn2qneO0l0JBjjHP41ZSFXkJYn5enNR3kSxjK55rwfbS2OqMnB3RGZWK43Giq0bEvg8iin7WRnZH/9k="},{"n":"1000016115","w":2532,"h":2995,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABgDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDsGuJAgkBIXB7+nBqI6oV480g/7uazJbt306H7ytHKyn1weahN6ijhDu9cdK6ITpSTuc/saqehp/2xIwYO6qfQjNFY3noyseRgf3f0oq4QpKKTd2E4VHJtK3kNF9KmcRb8nnimHV5icGIfiKkigRpWBz19akns4VXIB6d6+V511R3qckUZNRdrqMiMBdrZGetFPito3Zg2eOnSitfadCeaTP/Z"},{"n":"1000016116","w":2496,"h":2945,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABgDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDvr+6khaNYQrMx+73NY9vLK9l5rGdZNxkWMDPXoD+XP1q1dtKJ0mIWRvPCRhl+6PWm3KRJbiZmcvCpcoHPzdyD7VwTfO3fodtOKjH1Lmn30lzbhpdiyg/MqtnbRVPTIo4ICyoyM3UM27A7UV005vkTluc84Lmdil4j0+TU5ba3ilESrOJHZDzjHP496q3elam93ceVqTpBj92xY5AyCQcDnI4znNbN1bRLHBIAdzuM8+1I6AbhkkDGK4ZVOWVmjspyairFaORk1ONETckqjdIQenWipo4ljuVlUtkRnjPHNFb05XijnmveZ//Z"},{"n":"1000016117","w":2492,"h":3030,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABcDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDuriaSPaY4y4LAHnoPWs+aW7hdVt5vO3SZcPyVQ9xST6iZN0UAXAOyRnONmRwcd6qXu+3ltXMhYRMTKYwBx2B9qxlL3lrsdipu12i0L6bzxG2cHviio1ZZMTBwpI6EEUVXP2Ol8j2RBcXW2WfcTMinOxY+nJ/PpVae7EqGWBjH5w+UFSGODyMVqWdjBJCjOGJDZ61FqVtG+oWgOQMNwKw9nJx5m/P+uv8AXyKU4xdkijaARwZEjvuY43fXtRVkW0cUbRqCVXpk+9FdaSS0Li7rU//Z"},{"n":"1000016119","w":2301,"h":2802,"l":"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAcABcDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDqdQiTT7YtpCoZ5Du2jjLev/1q5z+1/tl1DDr1rCI3n2AsSHXHVjnjA4/OpYre60WOS51Cad4Z25XZnqfvHnIPrWVrF697PGunrC1rJLgyrGJDH04yckDHUentWEHq7bvd+Zda6tboa2o6vqNnqItLSAz2rgkbTjzMdwe2KK0ra9s9PtjZ3wjlmwCGAC+YAew7AZFFOM6lNclBLlXfe50K0ved9fQoRa7Jr7S21vcfZXtnVlYgZkHckHt1BHvVSU4Iuklt4vsjHCQxDexJAHflh2I5INbV9aW1lppvYIUE8qF5CR98gZGaxvB8g1aEvdxR583+AYzgAj9a5KSc6koLaKtrrcJ0r2lcH0GHxHLFPdXKC6ZAzCNSu/2IPQgUVQ8UandaLer9gk2NI772PJIHaiuilF1oKSdltppsJ3h7r1P/2Q=="}]</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const CFG = window.GALLERY_CONFIG;
+const MANIFEST = JSON.parse(document.getElementById('manifest').textContent);
+const TEX_BASE = 'paintings/';
+const $ = (id) => document.getElementById(id);
+const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+
+/* ------------------------------------------------------------------ */
+/*  Mode admin (?adm)                                                   */
+/* ------------------------------------------------------------------ */
+let isAdmin = window.location.pathname.includes('/adm') || window.location.search.includes('adm');
+let ADMIN_KEY = null;
+if (isAdmin) {
+  const k = window.prompt("Clé d'administration :");
+  if (k && k.trim()) ADMIN_KEY = k.trim();
+  else { isAdmin = false; alert('Mode visiteur activé.'); }
+}
+$('count').textContent = MANIFEST.length;
+if (isAdmin) $('mode-title').textContent = 'Mode administrateur (Entrée : sauvegarder)';
+$('hints').innerHTML = isTouch
+  ? '<span><b>Glisse</b> pour regarder</span><span><b>Flèches</b> pour avancer</span><span><b>Touche</b> un tableau pour l\'agrandir</span>'
+  : '<span><b>ZQSD</b> se déplacer</span><span><b>Souris</b> regarder</span><span><b>Maj</b> courir</span><span><b>Double-clic</b> marcher</span><span><b>Clic</b> sur un tableau = plein écran</span><span><b>Échap</b> pause</span>';
+if (isTouch) $('dpad').style.display = 'grid';
+
+function setProgress(p, label) {
+  $('barfill').style.width = Math.round(Math.max(0, Math.min(1, p)) * 100) + '%';
+  $('load-pct').textContent = Math.round(Math.max(0, Math.min(1, p)) * 100) + '%';
+  if (label) $('load-label').textContent = label;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Rendu                                                               */
+/* ------------------------------------------------------------------ */
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isTouch ? 1.5 : 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = CFG.toneMapping === 'aces' ? THREE.ACESFilmicToneMapping : THREE.LinearToneMapping;
+renderer.toneMappingExposure = CFG.exposure;
+$('stage').appendChild(renderer.domElement);
+const maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x05070d);
+
+const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 500);
+camera.rotation.order = 'YXZ';
+scene.add(camera);
+
+// Reflets réalistes (sol brillant, chrome, verre) grâce à une salle-studio virtuelle
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environment = envTex;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+scene.add(new THREE.HemisphereLight(0xcfe3ff, 0x2a2438, 0.7));
+const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+sun.position.set(10, 20, 10);
+scene.add(sun);
+
+// Post-traitement (PC) : halo lumineux + vignette + aberration chromatique + grain
+let composer = null, bloom = null, fxPass = null;
+const FXShader = {
+  uniforms: { tDiffuse: { value: null }, uTime: { value: 0 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: [
+    'uniform sampler2D tDiffuse; uniform float uTime; varying vec2 vUv;',
+    'float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }',
+    'void main(){',
+    '  vec2 c = vUv - 0.5; float d = dot(c, c);',
+    '  vec2 off = c * d * 0.014;',
+    '  vec3 col = vec3(texture2D(tDiffuse, vUv + off).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv - off).b);',
+    '  col *= 1.0 - smoothstep(0.12, 0.8, d * 1.7) * 0.5;',
+    '  col += (h(vUv * vec2(1920.0, 1080.0) + uTime) - 0.5) * 0.022;',
+    '  gl_FragColor = vec4(col, 1.0);',
+    '}'
+  ].join('\n')
+};
+function buildComposer() {
+  const w = window.innerWidth, h = window.innerHeight, pr = renderer.getPixelRatio();
+  const rt = new THREE.WebGLRenderTarget(w * pr, h * pr, { type: THREE.HalfFloatType, samples: 4 });
+  composer = new EffectComposer(renderer, rt);
+  composer.setPixelRatio(pr);
+  composer.setSize(w, h);
+  composer.addPass(new RenderPass(scene, camera));
+  bloom = new UnrealBloomPass(new THREE.Vector2(w, h), CFG.bloom, 0.65, 0.92);
+  bloom.enabled = CFG.bloom > 0;
+  composer.addPass(bloom);
+  fxPass = new ShaderPass(FXShader);
+  composer.addPass(fxPass);
+  composer.addPass(new OutputPass());
+}
+if (!isTouch) { try { buildComposer(); } catch (e) { console.warn('Post-traitement indisponible', e); composer = null; } }
+
+/* ------------------------------------------------------------------ */
+/*  Contrôles                                                           */
+/* ------------------------------------------------------------------ */
+const controls = new PointerLockControls(camera, renderer.domElement);
+let entered = false, touchEnabled = false, viewerOpen = false, contactOpen = false;
+const uiBusy = () => viewerOpen || contactOpen;
+
+const intro = $('intro'), enterBtn = $('enter'), crosshair = $('crosshair');
+function showPause() {
+  if (!entered) return;
+  $('load-label').textContent = 'Pause';
+  enterBtn.textContent = 'REPRENDRE';
+  intro.classList.remove('out');
+  crosshair.style.display = 'none';
+}
+function startWarp() { camera.fov = 96; }
+enterBtn.addEventListener('click', () => {
+  if (!modelReady) return;
+  if (!entered) { entered = true; startWarp(); $('hints').style.display = 'none'; }
+  if (isTouch) { intro.classList.add('out'); touchEnabled = true; }
+  else { try { controls.lock(); } catch (e) { console.warn(e); } }
+});
+controls.addEventListener('lock', () => { intro.classList.add('out'); crosshair.style.display = 'block'; });
+controls.addEventListener('unlock', () => { crosshair.style.display = 'none'; if (!uiBusy()) showPause(); });
+document.addEventListener('pointerlockerror', () => { if (!uiBusy()) showPause(); });
+
+const move = { forward: false, back: false, left: false, right: false, run: false, up: false, down: false };
+let moveTarget = null, isAutoMoving = false;
+const AUTO_ARRIVE = 0.25;
+
+document.addEventListener('keydown', (e) => {
+  const tag = (e.target && e.target.tagName) || '';
+  const typing = tag === 'INPUT' || tag === 'TEXTAREA';
+  if (e.code === 'Escape' && viewerOpen) { closeViewer(false); return; }
+  if (typing || uiBusy()) return;
+  if (isAdmin && e.code === 'Enter') { savePaintings(); return; }
+  if (e.code === 'KeyZ' || e.code === 'KeyW' || (e.code === 'ArrowUp' && !isAdmin)) { move.forward = true; isAutoMoving = false; }
+  if (e.code === 'KeyS' || (e.code === 'ArrowDown' && !isAdmin)) { move.back = true; isAutoMoving = false; }
+  if (e.code === 'KeyQ' || e.code === 'KeyA' || e.code === 'ArrowLeft') { move.left = true; isAutoMoving = false; }
+  if (e.code === 'KeyD' || e.code === 'ArrowRight') { move.right = true; isAutoMoving = false; }
+  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') move.run = true;
+  if (isAdmin) {
+    if (e.code === 'ArrowUp') selectPainting(currentPaintingIndex + 1);
+    if (e.code === 'ArrowDown') selectPainting(currentPaintingIndex - 1);
+    if (e.code === 'KeyF') hangCurrentPainting();
+    if (e.code === 'KeyG') removeAimedPainting();
+    if (e.code === 'KeyI') { paintingScaleMultiplier *= 1.1; updatePaintHud(); }
+    if (e.code === 'KeyK') { paintingScaleMultiplier /= 1.1; updatePaintHud(); }
+    if (e.code === 'KeyJ') rotateAimedPainting(-CFG.rotationStepDeg);
+    if (e.code === 'KeyL') rotateAimedPainting(CFG.rotationStepDeg);
+  }
+});
+document.addEventListener('keyup', (e) => {
+  if (e.code === 'KeyZ' || e.code === 'KeyW' || e.code === 'ArrowUp') move.forward = false;
+  if (e.code === 'KeyS' || e.code === 'ArrowDown') move.back = false;
+  if (e.code === 'KeyQ' || e.code === 'KeyA' || e.code === 'ArrowLeft') move.left = false;
+  if (e.code === 'KeyD' || e.code === 'ArrowRight') move.right = false;
+  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') move.run = false;
+});
+
+/* ------------------------------------------------------------------ */
+/*  Collisions / raycast                                                */
+/* ------------------------------------------------------------------ */
+let SCALE = 1, EYE_HEIGHT = CFG.eyeHeight, PLAYER_RADIUS = 0.35, WALK_SPEED = 3.2, RUN_SPEED = 6.0;
+const GROUND_SNAP_SPEED = 12;
+let MAX_STEP_UP = 0.5, RAY_LOOKAHEAD = 0.05;
+const collidableMeshes = [];
+const modelBox = new THREE.Box3();
+const raycaster = new THREE.Raycaster();
+raycaster.firstHitOnly = true; // utilisé par three-mesh-bvh si disponible (on ne lit que le 1er impact)
+
+function raycastFloorY(x, fromY, z) {
+  raycaster.set(new THREE.Vector3(x, fromY, z), new THREE.Vector3(0, -1, 0));
+  raycaster.far = (fromY - modelBox.min.y) + (2 * SCALE);
+  const hits = raycaster.intersectObjects(collidableMeshes, false);
+  return hits.length > 0 ? hits[0].point.y : null;
+}
+function raycastFloorYRobust(x, fromY, z) {
+  const r = PLAYER_RADIUS * 0.6;
+  const offs = [[0, 0], [r, 0], [-r, 0], [0, r], [0, -r]];
+  let best = null;
+  for (let i = 0; i < offs.length; i++) {
+    const fy = raycastFloorY(x + offs[i][0], fromY, z + offs[i][1]);
+    if (fy !== null && (best === null || fy > best)) best = fy;
+  }
+  return best;
+}
+function raycastCeilingDist(pos) {
+  raycaster.set(pos, new THREE.Vector3(0, 1, 0));
+  raycaster.far = EYE_HEIGHT + 0.3;
+  const hits = raycaster.intersectObjects(collidableMeshes, false);
+  return hits.length > 0 ? hits[0].distance : Infinity;
+}
+function isBlocked(position, direction, distance) {
+  if (direction.lengthSq() === 0) return false;
+  const dir = direction.clone().normalize();
+  const origin = position.clone();
+  origin.y = position.y - EYE_HEIGHT + MAX_STEP_UP + (0.05 * SCALE);
+  raycaster.set(origin, dir);
+  raycaster.far = distance + PLAYER_RADIUS;
+  const hits = raycaster.intersectObjects(collidableMeshes, false);
+  return hits.length > 0 && hits[0].distance < (PLAYER_RADIUS + RAY_LOOKAHEAD);
+}
+function getWalkTargetFromRay() {
+  const hits = raycaster.intersectObjects(collidableMeshes, false);
+  if (hits.length === 0) return null;
+  const hit = hits[0];
+  const floorY = raycastFloorYRobust(hit.point.x, hit.point.y + (2 * SCALE), hit.point.z);
+  return { x: hit.point.x, z: hit.point.z, y: floorY !== null ? floorY : hit.point.y };
+}
+function startAutoMoveToScreenPoint(cx, cy) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  const ndc = new THREE.Vector2(((cx - rect.left) / rect.width) * 2 - 1, -((cy - rect.top) / rect.height) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const t = getWalkTargetFromRay();
+  if (t) { moveTarget = t; isAutoMoving = true; }
+}
+function startAutoMoveToCrosshair() {
+  raycaster.set(camera.getWorldPosition(new THREE.Vector3()), camera.getWorldDirection(new THREE.Vector3()));
+  raycaster.far = 200 * SCALE;
+  const t = getWalkTargetFromRay();
+  if (t) { moveTarget = t; isAutoMoving = true; }
+}
+renderer.domElement.addEventListener('dblclick', () => { if (controls.isLocked) startAutoMoveToCrosshair(); });
+
+/* Accélération des collisions (three-mesh-bvh) : chargée en option, construite pendant l'écran d'accueil */
+async function setupBVH(meshes) {
+  try {
+    const m = await import('https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.7.3/build/index.module.js');
+    THREE.BufferGeometry.prototype.computeBoundsTree = m.computeBoundsTree;
+    THREE.BufferGeometry.prototype.disposeBoundsTree = m.disposeBoundsTree;
+    THREE.Mesh.prototype.raycast = m.acceleratedRaycast;
+    const queue = meshes.filter((x) => x.geometry && x.geometry.attributes.position.count > 200)
+      .sort((a, b) => b.geometry.attributes.position.count - a.geometry.attributes.position.count);
+    const step = () => {
+      const t0 = performance.now();
+      while (queue.length && performance.now() - t0 < 8) {
+        const mesh = queue.shift();
+        try { mesh.geometry.computeBoundsTree(); } catch (e) { /* on garde le raycast normal pour ce maillage */ }
+      }
+      if (queue.length) setTimeout(step, 0);
+    };
+    setTimeout(step, 50);
+  } catch (e) { console.warn('Accélération des collisions indisponible (le site fonctionne quand même)', e); }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Tactile                                                             */
+/* ------------------------------------------------------------------ */
+const touchLook = { active: false, id: null, lastX: 0, lastY: 0, startX: 0, startY: 0, moved: false };
+const touchRot = { yaw: 0, pitch: 0 };
+const T_SENS = 0.0022, T_SMOOTH = 0.18, T_MAXD = 40;
+renderer.domElement.addEventListener('touchstart', (e) => {
+  if (!touchEnabled || touchLook.active) return;
+  const t = e.changedTouches[0];
+  touchLook.active = true; touchLook.id = t.identifier; touchLook.moved = false;
+  touchLook.lastX = touchLook.startX = t.clientX; touchLook.lastY = touchLook.startY = t.clientY;
+}, { passive: true });
+renderer.domElement.addEventListener('touchmove', (e) => {
+  if (!touchEnabled || !touchLook.active) return;
+  let t = null;
+  for (let i = 0; i < e.changedTouches.length; i++) if (e.changedTouches[i].identifier === touchLook.id) { t = e.changedTouches[i]; break; }
+  if (!t) return;
+  e.preventDefault();
+  const dx = Math.max(-T_MAXD, Math.min(T_MAXD, t.clientX - touchLook.lastX));
+  const dy = Math.max(-T_MAXD, Math.min(T_MAXD, t.clientY - touchLook.lastY));
+  touchLook.lastX = t.clientX; touchLook.lastY = t.clientY;
+  if (Math.abs(t.clientX - touchLook.startX) > 8 || Math.abs(t.clientY - touchLook.startY) > 8) touchLook.moved = true;
+  touchRot.yaw -= dx * T_SENS; touchRot.pitch -= dy * T_SENS;
+  const M = 0.35;
+  touchRot.yaw = Math.max(-M, Math.min(M, touchRot.yaw));
+  touchRot.pitch = Math.max(-M, Math.min(M, touchRot.pitch));
+}, { passive: false });
+function endTouch(e) {
+  if (!touchEnabled || !touchLook.active) return;
+  let ended = false;
+  for (let i = 0; i < e.changedTouches.length; i++) if (e.changedTouches[i].identifier === touchLook.id) { ended = true; break; }
+  if (!ended) return;
+  if (!touchLook.moved) {
+    const idx = paintingAtScreenPoint(touchLook.startX, touchLook.startY);
+    if (idx >= 0 && !isAdmin) openViewer(idx);
+    else startAutoMoveToScreenPoint(touchLook.startX, touchLook.startY);
+  }
+  touchLook.active = false; touchLook.id = null;
+}
+renderer.domElement.addEventListener('touchend', endTouch);
+renderer.domElement.addEventListener('touchcancel', endTouch);
+function applyTouchLook() {
+  if (Math.abs(touchRot.yaw) < 0.00003 && Math.abs(touchRot.pitch) < 0.00003) return;
+  const ay = touchRot.yaw * T_SMOOTH, ap = touchRot.pitch * T_SMOOTH;
+  camera.rotation.y += ay;
+  camera.rotation.x = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, camera.rotation.x + ap));
+  touchRot.yaw -= ay; touchRot.pitch -= ap;
+}
+function setupDpad(id, key) {
+  const btn = $(id);
+  const start = (e) => { e.preventDefault(); e.stopPropagation(); move[key] = true; isAutoMoving = false; btn.classList.add('active'); };
+  const stop = (e) => { if (e) { e.preventDefault(); e.stopPropagation(); } move[key] = false; btn.classList.remove('active'); };
+  btn.addEventListener('touchstart', start, { passive: false });
+  btn.addEventListener('touchend', stop, { passive: false });
+  btn.addEventListener('touchcancel', stop, { passive: false });
+  btn.addEventListener('mousedown', start);
+  btn.addEventListener('mouseup', stop);
+  btn.addEventListener('mouseleave', stop);
+}
+setupDpad('dp-up', 'forward'); setupDpad('dp-down', 'back'); setupDpad('dp-left', 'left'); setupDpad('dp-right', 'right');
+
+/* ------------------------------------------------------------------ */
+/*  Tableaux : affichage instantané (miniature floue -> image nette)   */
+/* ------------------------------------------------------------------ */
+const texLoader = new THREE.TextureLoader();
+const lqCache = new Map();
+function lqTexture(idx) {
+  let t = lqCache.get(idx);
+  if (!t) {
+    t = texLoader.load(MANIFEST[idx].l);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter; t.generateMipmaps = false;
+    lqCache.set(idx, t);
+  }
+  return t;
+}
+const fullEntries = new Map();      // idx -> { tex, cbs }
+const loadQueue = [];
+const uploadQueue = [];
+const idxPos = new Map();           // idx -> Vector3 (pour charger d'abord les tableaux proches)
+let activeLoads = 0;
+
+function requestFull(idx, cb) {
+  let e = fullEntries.get(idx);
+  if (e) { if (e.tex) cb(e.tex); else e.cbs.push(cb); return; }
+  e = { tex: null, cbs: [cb] };
+  fullEntries.set(idx, e);
+  loadQueue.push(idx);
+  pumpLoads();
+}
+function pumpLoads() {
+  while (activeLoads < 6 && loadQueue.length) {
+    let bi = 0, bd = Infinity;
+    for (let i = 0; i < loadQueue.length; i++) {
+      const p = idxPos.get(loadQueue[i]);
+      const d = p ? p.distanceToSquared(camera.position) : 0;
+      if (d < bd) { bd = d; bi = i; }
+    }
+    const idx = loadQueue.splice(bi, 1)[0];
+    activeLoads++;
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = TEX_BASE + MANIFEST[idx].n + '.webp';
+    img.decode().then(() => {
+      const tex = new THREE.Texture(img);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = maxAniso;
+      tex.needsUpdate = true;
+      uploadQueue.push({ idx, tex });
+    }).catch((err) => console.warn('Image introuvable : ' + img.src, err))
+      .then(() => { activeLoads--; pumpLoads(); });
+  }
+}
+function processUploads() {
+  const n = isTouch ? 1 : 2;
+  for (let i = 0; i < n && uploadQueue.length; i++) {
+    const u = uploadQueue.shift();
+    try { renderer.initTexture(u.tex); } catch (e) { /* upload au 1er rendu */ }
+    const e = fullEntries.get(u.idx);
+    e.tex = u.tex;
+    e.cbs.forEach((cb) => cb(u.tex));
+    e.cbs = [];
+  }
+}
+
+const frameMat = new THREE.MeshStandardMaterial({ color: 0x0b0c12, metalness: 0.9, roughness: 0.32 });
+const lightBarMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 2.1, 1.7) });
+const paintVert = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
+const paintFrag = [
+  'uniform sampler2D uA; uniform sampler2D uB; uniform float uMix; uniform float uHover; varying vec2 vUv;',
+  'void main(){',
+  '  vec3 c = mix(texture2D(uA, vUv).rgb, texture2D(uB, vUv).rgb, uMix);',
+  '  c *= 0.95 + 0.14 * smoothstep(0.35, 1.0, vUv.y);',
+  '  c *= 1.0 + uHover * 0.2;',
+  '  float e = min(min(vUv.x, 1.0 - vUv.x), min(vUv.y, 1.0 - vUv.y));',
+  '  c += vec3(0.0, 0.9, 1.0) * uHover * (1.0 - smoothstep(0.0, 0.02, e));',
+  '  gl_FragColor = vec4(c, 1.0);',
+  '  #include <tonemapping_fragment>',
+  '  #include <colorspace_fragment>',
+  '}'
+].join('\n');
+const haloFrag = [
+  'varying vec2 vUv;',
+  'void main(){',
+  '  vec2 p = (vUv - vec2(0.5, 0.60)) * vec2(1.0, 1.1) * 2.0;',
+  '  float a = pow(clamp(1.0 - length(p), 0.0, 1.0), 2.4);',
+  '  gl_FragColor = vec4(vec3(1.0, 0.84, 0.6) * 0.5, a);',
+  '}'
+].join('\n');
+
+const paintingGroups = [];
+const canvases = [];        // maillages "toile" (survol / clic)
+const placedPaintings = [];  // admin
+const fades = [];
+
+function applyPaintingOrientation(obj, normal, rotationDeg) {
+  const align = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+  const spin = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), THREE.MathUtils.degToRad(rotationDeg || 0));
+  obj.quaternion.copy(align).multiply(spin);
+}
+
+function createPainting(rec) {
+  const m = MANIFEST[rec.index];
+  if (!m) return null;
+  const group = new THREE.Group();
+  group.position.set(rec.position.x, rec.position.y, rec.position.z);
+  const normal = new THREE.Vector3(rec.normal.x, rec.normal.y, rec.normal.z);
+  applyPaintingOrientation(group, normal, rec.rotation || 0);
+
+  const w = rec.width, h = rec.height;
+  const lq = lqTexture(rec.index);
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { uA: { value: lq }, uB: { value: lq }, uMix: { value: 0 }, uHover: { value: 0 } },
+    vertexShader: paintVert, fragmentShader: paintFrag, side: THREE.DoubleSide
+  });
+  const canvas = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+  canvas.userData.index = rec.index;
+  canvas.userData.own = true;
+  group.add(canvas);
+
+  // cadre métallique sombre
+  const b = 0.04 * SCALE, d = 0.02 * SCALE, z = 0.003 * SCALE;
+  const bar = (gw, gh, x, y) => { const mesh = new THREE.Mesh(new THREE.BoxGeometry(gw, gh, d), frameMat); mesh.position.set(x, y, z); group.add(mesh); };
+  bar(w + 2 * b, b, 0, h / 2 + b / 2); bar(w + 2 * b, b, 0, -h / 2 - b / 2); bar(b, h, -w / 2 - b / 2, 0); bar(b, h, w / 2 + b / 2, 0);
+
+  // petite lampe lumineuse au-dessus + halo sur le mur
+  const lamp = new THREE.Mesh(new THREE.BoxGeometry(w * 0.42, 0.02 * SCALE, 0.03 * SCALE), lightBarMat);
+  lamp.position.set(0, h / 2 + b + 0.1 * SCALE, 0.06 * SCALE);
+  group.add(lamp);
+  const halo = new THREE.Mesh(new THREE.PlaneGeometry(w * 1.9, h * 1.7), new THREE.ShaderMaterial({
+    vertexShader: paintVert, fragmentShader: haloFrag, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+  }));
+  halo.position.set(0, h * 0.06, -0.012 * SCALE);
+  halo.userData.own = true;
+  group.add(halo);
+
+  scene.add(group);
+  paintingGroups.push(group);
+  canvases.push(canvas);
+  if (!idxPos.has(rec.index)) idxPos.set(rec.index, group.position.clone());
+
+  // l'image nette arrive en fondu par-dessus la miniature floue
+  const ready = fullEntries.get(rec.index);
+  if (ready && ready.tex) { mat.uniforms.uB.value = ready.tex; mat.uniforms.uMix.value = 1; }
+  else requestFull(rec.index, (tex) => { mat.uniforms.uB.value = tex; fades.push(mat.uniforms.uMix); });
+  return { group, canvas, record: rec };
+}
+
+function clearPaintings() {
+  paintingGroups.forEach((g) => {
+    scene.remove(g);
+    g.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.userData && o.userData.own && o.material) o.material.dispose();
+    });
+  });
+  paintingGroups.length = 0; canvases.length = 0; placedPaintings.length = 0; fades.length = 0;
+}
+
+/* Données (positions) : cache local = affichage instantané aux visites suivantes */
+const CACHE_KEY = 'atelier_positions_v2';
+function readCache() { try { const a = JSON.parse(localStorage.getItem(CACHE_KEY)); return Array.isArray(a) ? a : null; } catch (e) { return null; } }
+function writeCache(a) { try { localStorage.setItem(CACHE_KEY, JSON.stringify(a)); } catch (e) { /* ignoré */ } }
+let records = null, recordsSig = '', modelReady = false, appliedOnce = false;
+function applyRecords() {
+  if (!modelReady || records === null) return;
+  if (isAdmin && appliedOnce) return;           // ne jamais écraser un travail d'admin en cours
+  appliedOnce = true;
+  clearPaintings();
+  records.forEach((rec) => {
+    const p = createPainting(rec);
+    if (p && isAdmin) placedPaintings.push({ mesh: p.canvas, group: p.group, record: rec });
+  });
+  if (isAdmin) updatePaintHud();
+}
+function setRecords(arr) {
+  const sig = JSON.stringify(arr);
+  if (sig === recordsSig) return;
+  recordsSig = sig; records = arr; applyRecords();
+}
+if (!isAdmin) { const c = readCache(); if (c) setRecords(c); }
+window.__early.remote.then((arr) => {
+  if (arr) { writeCache(arr); setRecords(arr); }
+  else if (records === null) setRecords(readCache() || []);
+});
+
+/* Survol / clic sur un tableau */
+const hoverRay = new THREE.Raycaster();
+let hoveredCanvas = null;
+function paintingAtScreenPoint(cx, cy) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  hoverRay.setFromCamera(new THREE.Vector2(((cx - rect.left) / rect.width) * 2 - 1, -((cy - rect.top) / rect.height) * 2 + 1), camera);
+  hoverRay.far = 60 * SCALE;
+  const hit = hoverRay.intersectObjects(canvases, false)[0];
+  return hit ? hit.object.userData.index : -1;
+}
+let hoverTimer = 0;
+function updateHover(dt) {
+  hoverTimer += dt;
+  if (hoverTimer > 0.08) {
+    hoverTimer = 0;
+    let found = null;
+    if (controls.isLocked && !isAdmin && !uiBusy() && canvases.length) {
+      hoverRay.set(camera.position, camera.getWorldDirection(new THREE.Vector3()));
+      hoverRay.far = 14 * SCALE;
+      const hit = hoverRay.intersectObjects(canvases, false)[0];
+      if (hit) found = hit.object;
+    }
+    hoveredCanvas = found;
+    crosshair.classList.toggle('hot', !!found);
+    $('tag').classList.toggle('show', !!found);
+  }
+  for (let i = 0; i < canvases.length; i++) {
+    const u = canvases[i].material.uniforms.uHover;
+    const target = canvases[i] === hoveredCanvas ? 1 : 0;
+    if (u.value !== target) u.value += (target - u.value) * Math.min(1, dt * 10);
+    if (Math.abs(u.value - target) < 0.01) u.value = target;
+  }
+}
+renderer.domElement.addEventListener('click', () => {
+  if (controls.isLocked && hoveredCanvas && !isAdmin) openViewer(hoveredCanvas.userData.index);
+});
+
+/* Visionneuse plein écran */
+let viewerIdx = 0;
+function openViewer(idx) {
+  viewerOpen = true; viewerIdx = idx;
+  if (controls.isLocked) controls.unlock();
+  Object.keys(move).forEach((k) => { move[k] = false; });
+  $('tag').classList.remove('show');
+  showViewerImage();
+  const v = $('viewer'); v.style.display = 'flex';
+  requestAnimationFrame(() => v.classList.add('show'));
+}
+function showViewerImage() {
+  const m = MANIFEST[viewerIdx], img = $('v-img');
+  $('v-count').textContent = (viewerIdx + 1) + ' / ' + MANIFEST.length;
+  img.classList.add('blur');
+  img.src = TEX_BASE + m.n + '.webp';              // déjà en cache : instantané
+  const hd = new Image();
+  hd.onload = () => { if (MANIFEST[viewerIdx] === m) { img.src = hd.src; img.classList.remove('blur'); } };
+  hd.onerror = () => img.classList.remove('blur');
+  hd.src = TEX_BASE + 'hd/' + m.n + '.webp';
+  setTimeout(() => img.classList.remove('blur'), 900);
+}
+function closeViewer(relock) {
+  viewerOpen = false;
+  const v = $('viewer'); v.classList.remove('show');
+  setTimeout(() => { if (!viewerOpen) v.style.display = 'none'; }, 350);
+  if (isTouch) return;
+  if (relock) { try { controls.lock(); } catch (e) { showPause(); } } else showPause();
+}
+$('v-close').addEventListener('click', () => closeViewer(true));
+$('v-prev').addEventListener('click', () => { viewerIdx = (viewerIdx + MANIFEST.length - 1) % MANIFEST.length; showViewerImage(); });
+$('v-next').addEventListener('click', () => { viewerIdx = (viewerIdx + 1) % MANIFEST.length; showViewerImage(); });
+$('viewer').addEventListener('click', (e) => { if (e.target === $('viewer')) closeViewer(true); });
+
+/* ------------------------------------------------------------------ */
+/*  Administration (placement des tableaux)                            */
+/* ------------------------------------------------------------------ */
+let currentPaintingIndex = 0, paintingScaleMultiplier = 1, nextPaintingRotationDeg = 0;
+const paintHud = $('paint-hud');
+function updatePaintHud() {
+  if (!isAdmin) return;
+  paintHud.style.display = 'block';
+  paintHud.innerHTML = 'Tableau ' + (currentPaintingIndex + 1) + ' / ' + MANIFEST.length + ' — ' + MANIFEST[currentPaintingIndex].n + '<br>' +
+    '↑ / ↓ changer &nbsp; F poser &nbsp; G retirer &nbsp; [I]/[K] taille (x' + paintingScaleMultiplier.toFixed(2) + ')<br>' +
+    '[J]/[L] tourner (viser un tableau posé, sinon le prochain : ' + Math.round(nextPaintingRotationDeg) + '°)<br>' +
+    '<b>[ENTRÉE] ENREGISTRER LES TABLEAUX POUR TOUS</b>';
+}
+function selectPainting(i) {
+  if (!isAdmin) return;
+  currentPaintingIndex = ((i % MANIFEST.length) + MANIFEST.length) % MANIFEST.length;
+  updatePaintHud();
+}
+function adminActive() { return isAdmin && (controls.isLocked || touchEnabled); }
+function hangCurrentPainting() {
+  if (!adminActive()) return;
+  raycaster.set(camera.getWorldPosition(new THREE.Vector3()), camera.getWorldDirection(new THREE.Vector3()));
+  raycaster.far = 100 * SCALE;
+  const hits = raycaster.intersectObjects(collidableMeshes, false);
+  if (hits.length === 0) return;
+  const hit = hits[0];
+  const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld).normalize();
+  const m = MANIFEST[currentPaintingIndex];
+  const baseHeight = 1.1 * SCALE * paintingScaleMultiplier;
+  const baseWidth = baseHeight * (m.w / m.h);
+  const pos = hit.point.clone().addScaledVector(normal, 0.02 * SCALE);
+  const rec = {
+    index: currentPaintingIndex,
+    position: { x: pos.x, y: pos.y, z: pos.z },
+    normal: { x: normal.x, y: normal.y, z: normal.z },
+    width: baseWidth, height: baseHeight, rotation: nextPaintingRotationDeg
+  };
+  const p = createPainting(rec);
+  if (p) placedPaintings.push({ mesh: p.canvas, group: p.group, record: rec });
+}
+function rotateAimedPainting(deltaDeg) {
+  if (!adminActive()) return;
+  if (placedPaintings.length > 0) {
+    raycaster.set(camera.getWorldPosition(new THREE.Vector3()), camera.getWorldDirection(new THREE.Vector3()));
+    raycaster.far = 100 * SCALE;
+    const hit = raycaster.intersectObjects(placedPaintings.map((p) => p.mesh), false)[0];
+    if (hit) {
+      const item = placedPaintings.find((p) => p.mesh === hit.object);
+      if (item) {
+        const rec = item.record;
+        rec.rotation = (rec.rotation || 0) + deltaDeg;
+        applyPaintingOrientation(item.group, new THREE.Vector3(rec.normal.x, rec.normal.y, rec.normal.z), rec.rotation);
+        return;
+      }
+    }
+  }
+  nextPaintingRotationDeg += deltaDeg;
+  updatePaintHud();
+}
+function removeAimedPainting() {
+  if (!adminActive() || placedPaintings.length === 0) return;
+  raycaster.set(camera.getWorldPosition(new THREE.Vector3()), camera.getWorldDirection(new THREE.Vector3()));
+  raycaster.far = 100 * SCALE;
+  const hit = raycaster.intersectObjects(placedPaintings.map((p) => p.mesh), false)[0];
+  if (!hit) return;
+  const i = placedPaintings.findIndex((p) => p.mesh === hit.object);
+  if (i === -1) return;
+  const item = placedPaintings.splice(i, 1)[0];
+  scene.remove(item.group);
+  const ci = canvases.indexOf(item.mesh); if (ci >= 0) canvases.splice(ci, 1);
+  const gi = paintingGroups.indexOf(item.group); if (gi >= 0) paintingGroups.splice(gi, 1);
+  item.group.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.userData && o.userData.own && o.material) o.material.dispose(); });
+}
+function putPaintings(headerName, recs) {
+  const headers = { 'Content-Type': 'application/json' };
+  headers[headerName] = ADMIN_KEY;
+  return fetch('https://api.jsonbin.io/v3/b/' + CFG.binId, { method: 'PUT', headers, body: JSON.stringify({ paintings: recs }) });
+}
+function savePaintings() {
+  if (!isAdmin) return;
+  const recs = placedPaintings.map((p) => p.record);
+  putPaintings('X-Master-Key', recs)
+    .then((res) => (res.status === 401 || res.status === 403) ? putPaintings('X-Access-Key', recs) : res)
+    .then((res) => {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      writeCache(recs);
+      alert("Succès ! Les positions des tableaux ont été enregistrées. Elles s'afficheront désormais pour tous les visiteurs.");
+    })
+    .catch((err) => {
+      const m = String((err && err.message) || err);
+      const hint = /40[13]/.test(m) ? "La clé a été refusée : ce n'est pas celle du compte qui possède le bin (ou elle n'a pas le droit de modifier)."
+        : /404/.test(m) ? "Bin introuvable : vérifie l'identifiant du bin."
+        : /429/.test(m) ? 'Trop de requêtes jsonbin, réessaie plus tard.'
+        : 'Problème de connexion ou de blocage du navigateur.';
+      alert("Échec de l'enregistrement (" + m + ').\n' + hint);
+      console.error(err);
+    });
+}
+
+/* ------------------------------------------------------------------ */
+/*  Ambiance : lumières néon, poussière lumineuse                       */
+/* ------------------------------------------------------------------ */
+let neon = [], dust = null, dustMat = null;
+function buildAtmosphere(center, size) {
+  const I = 18 * SCALE * SCALE, y = modelBox.min.y + size.y * 0.5;
+  const mk = (color) => { const l = new THREE.PointLight(color, I, 0, 2); scene.add(l); return l; };
+  neon = [mk(0x00e5ff), mk(0xff3df2)];
+  if (!isTouch) neon.push(mk(0x8a5cff));
+  neon.forEach((l, i) => { l.userData = { cx: center.x, cz: center.z, y, rx: size.x * 0.22, rz: size.z * 0.22, ph: i * 2.1 }; });
+
+  const N = isTouch ? 160 : 520, BOX = new THREE.Vector3(36, 16, 36);
+  const pos = new Float32Array(N * 3), seed = new Float32Array(N);
+  for (let i = 0; i < N; i++) { pos[i * 3] = Math.random() * BOX.x; pos[i * 3 + 1] = Math.random() * BOX.y; pos[i * 3 + 2] = Math.random() * BOX.z; seed[i] = Math.random(); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
+  dustMat = new THREE.ShaderMaterial({
+    uniforms: { uCam: { value: new THREE.Vector3() }, uTime: { value: 0 }, uBox: { value: BOX }, uPx: { value: renderer.getPixelRatio() } },
+    vertexShader: [
+      'uniform vec3 uCam; uniform float uTime; uniform vec3 uBox; uniform float uPx; attribute float aSeed; varying float vA;',
+      'void main(){',
+      '  vec3 p = position + vec3(sin(uTime * 0.11 + aSeed * 40.0), uTime * 0.05 * (0.3 + aSeed), cos(uTime * 0.09 + aSeed * 31.0)) * 0.8;',
+      '  vec3 d = mod(p - uCam + uBox * 0.5, uBox) - uBox * 0.5;',
+      '  vec4 mv = viewMatrix * vec4(uCam + d, 1.0);',
+      '  gl_Position = projectionMatrix * mv;',
+      '  float dist = max(-mv.z, 0.5);',
+      '  gl_PointSize = uPx * clamp((22.0 + aSeed * 30.0) / dist, 1.2, 7.0);',
+      '  vA = (0.3 + 0.7 * fract(aSeed * 7.7 + uTime * 0.25)) * (1.0 - smoothstep(0.25, 0.5, length(d / uBox)));',
+      '}'
+    ].join('\n'),
+    fragmentShader: [
+      'varying float vA;',
+      'void main(){ float d = length(gl_PointCoord - 0.5); float a = smoothstep(0.5, 0.0, d); a *= a;',
+      '  gl_FragColor = vec4(vec3(0.55, 0.9, 1.0), a * vA * 0.7); }'
+    ].join('\n'),
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+  });
+  dust = new THREE.Points(g, dustMat);
+  dust.frustumCulled = false;
+  scene.add(dust);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Chargement du modèle 3D                                            */
+/* ------------------------------------------------------------------ */
+const gltfLoader = new GLTFLoader();
+const draco = new DRACOLoader();
+draco.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/draco/gltf/');
+gltfLoader.setDRACOLoader(draco);
+gltfLoader.setMeshoptDecoder(MeshoptDecoder);
+
+async function downloadModel() {
+  const res = await window.__early.glb;
+  const total = Number(res.headers.get('content-length')) || 0;
+  const reader = res.body.getReader();
+  const chunks = []; let got = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value); got += value.length;
+    setProgress((total ? got / total : Math.min(0.95, got / 32e6)) * 0.85, 'Chargement');
+  }
+  const buf = new Uint8Array(got); let o = 0;
+  for (const c of chunks) { buf.set(c, o); o += c.length; }
+  return buf.buffer;
+}
+
+function onModelBuilt(gltf) {
+  const model = gltf.scene;
+  const seen = new Set();
+  model.traverse((child) => {
+    if (!child.isMesh) return;
+    child.frustumCulled = true;
+    collidableMeshes.push(child);
+    const mats = Array.isArray(child.material) ? child.material : [child.material];
+    mats.forEach((m) => {
+      if (!m || seen.has(m)) return;
+      seen.add(m);
+      m.side = THREE.DoubleSide; m.transparent = false; m.opacity = 1.0;
+      const emissive = m.emissive && (m.emissive.r + m.emissive.g + m.emissive.b) > 0.01;
+      if (m.color) {
+        if (/^painting_\d+$/.test(m.name || '')) m.color.setScalar(0.03);   // emplacements vides : sombres, comme avant
+        else m.color.multiplyScalar(emissive ? CFG.darken * 0.5 : CFG.darken);
+      }
+      if ('envMapIntensity' in m) m.envMapIntensity = 0.6;
+      if (m.name === 'floor') { m.roughness = 0.3; m.envMapIntensity = 1.2; }
+      if (m.name === 'chrome') m.envMapIntensity = 1.4;
+      if (m.name === 'glass') m.envMapIntensity = 1.2;
+      m.needsUpdate = true;
+    });
+  });
+  scene.add(model);
+
+  modelBox.setFromObject(model);
+  const center = modelBox.getCenter(new THREE.Vector3());
+  const size = modelBox.getSize(new THREE.Vector3());
+  const diagonal = size.length();
+  SCALE = diagonal / 20;
+  if (!isFinite(SCALE) || SCALE <= 0) SCALE = 1;
+  EYE_HEIGHT = CFG.eyeHeight;
+  PLAYER_RADIUS = 0.35 * SCALE; WALK_SPEED = 3.2 * SCALE; RUN_SPEED = 6.0 * SCALE;
+  MAX_STEP_UP = 0.5 * SCALE; RAY_LOOKAHEAD = 0.05 * SCALE;
+  camera.far = Math.max(1000, diagonal * 10);
+  camera.near = Math.max(0.001, diagonal * 0.0001);
+  camera.updateProjectionMatrix();
+
+  const startY = modelBox.max.y > modelBox.min.y ? modelBox.min.y + EYE_HEIGHT : center.y;
+  camera.position.set(center.x, startY, center.z);
+  camera.rotation.set(0, BASE_YAW, 0);
+  buildAtmosphere(center, size);
+  setupBVH(collidableMeshes);
+
+  modelReady = true;
+  applyRecords();
+  setProgress(1, 'Prêt');
+  $('loadbox').classList.add('done');
+  intro.classList.add('ready');
+  enterBtn.classList.add('show');
+  animate();
+}
+const BASE_YAW = -Math.PI / 2;   // regarde vers +X au départ (comme avant)
+
+(async function loadAll() {
+  try {
+    const buf = await downloadModel();
+    setProgress(0.88, 'Construction de la salle');
+    await new Promise((r) => setTimeout(r, 30));            // laisse le navigateur afficher la barre
+    gltfLoader.parse(buf, '', (gltf) => { try { onModelBuilt(gltf); } catch (e) { fail(e); } }, fail);
+  } catch (e) { fail(e); }
+})();
+function fail(err) {
+  console.error(err);
+  $('load-label').textContent = 'Erreur de chargement du modèle 3D';
+  $('load-label').style.color = '#ff6b6b';
+}
+
+/* ------------------------------------------------------------------ */
+/*  Boucle principale                                                   */
+/* ------------------------------------------------------------------ */
+const clock = new THREE.Clock();
+const fwd = new THREE.Vector3(), rgt = new THREE.Vector3(), mdir = new THREE.Vector3();
+let frameNo = 0, slowTime = 0, perfStage = 0, fovAnim = false;
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+  frameNo++;
+
+  if (!entered) {
+    camera.rotation.y = BASE_YAW + Math.sin(t * 0.22) * 0.55;
+    camera.rotation.x = Math.sin(t * 0.15) * 0.05;
+  } else if (controls.isLocked || touchEnabled) {
+    updateMovement(dt);
+  }
+  applyTouchLook();
+
+  if (camera.fov > 70.01) {                                   // petit "warp" à l'entrée
+    camera.fov += (70 - camera.fov) * Math.min(1, dt * 3.2);
+    if (camera.fov < 70.05) camera.fov = 70;
+    camera.updateProjectionMatrix();
+  }
+
+  processUploads();
+  for (let i = fades.length - 1; i >= 0; i--) {
+    fades[i].value = Math.min(1, fades[i].value + dt / 0.7);
+    if (fades[i].value >= 1) fades.splice(i, 1);
+  }
+  updateHover(dt);
+
+  for (let i = 0; i < neon.length; i++) {
+    const d = neon[i].userData, a = t * 0.12 + d.ph;
+    neon[i].position.set(d.cx + Math.cos(a) * d.rx, d.y, d.cz + Math.sin(a * 1.3) * d.rz);
+  }
+  if (dustMat) { dustMat.uniforms.uTime.value = t; dustMat.uniforms.uCam.value.copy(camera.position); }
+
+  if (composer) {
+    fxPass.uniforms.uTime.value = t % 100;
+    composer.render();
+  } else renderer.render(scene, camera);
+
+  // si le PC rame : on retire d'abord le halo, puis tout le post-traitement
+  if (composer && frameNo > 120) {
+    slowTime = dt > 0.034 ? slowTime + dt : Math.max(0, slowTime - dt);
+    if (slowTime > 2.5) {
+      slowTime = 0; perfStage++;
+      if (perfStage === 1 && bloom) bloom.enabled = false;
+      else { composer = null; renderer.setPixelRatio(1); renderer.setSize(window.innerWidth, window.innerHeight); }
+    }
+  }
+}
+
+function updateMovement(delta) {
+  const speed = move.run ? RUN_SPEED : WALK_SPEED, step = speed * delta;
+  camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize();
+  rgt.crossVectors(fwd, camera.up).normalize();
+  mdir.set(0, 0, 0);
+  if (move.forward) mdir.add(fwd);
+  if (move.back) mdir.sub(fwd);
+  if (move.right) mdir.add(rgt);
+  if (move.left) mdir.sub(rgt);
+  const pos = camera.position;
+  let moving = false;
+
+  if (mdir.lengthSq() > 0) {
+    isAutoMoving = false; moving = true;
+    mdir.normalize();
+    const tx = new THREE.Vector3(mdir.x, 0, 0), tz = new THREE.Vector3(0, 0, mdir.z);
+    if (mdir.x !== 0 && !isBlocked(pos, tx, step)) pos.x += mdir.x * step;
+    if (mdir.z !== 0 && !isBlocked(pos, tz, step)) pos.z += mdir.z * step;
+  } else if (isAutoMoving && moveTarget) {
+    const dx = moveTarget.x - pos.x, dz = moveTarget.z - pos.z, dist = Math.hypot(dx, dz);
+    if (dist < AUTO_ARRIVE * SCALE) isAutoMoving = false;
+    else {
+      moving = true;
+      const ux = dx / dist, uz = dz / dist, auto = Math.min(WALK_SPEED * delta, dist);
+      let mx = false, mz = false;
+      if (!isBlocked(pos, new THREE.Vector3(ux, 0, 0), auto)) { pos.x += ux * auto; mx = true; }
+      if (!isBlocked(pos, new THREE.Vector3(0, 0, uz), auto)) { pos.z += uz * auto; mz = true; }
+      if (!mx && !mz) isAutoMoving = false;
+      // la caméra se tourne doucement vers la direction de marche
+      const targetYaw = Math.atan2(-ux, -uz);
+      let diff = targetYaw - camera.rotation.y;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      camera.rotation.y += diff * Math.min(1, 6 * delta);
+    }
+  }
+
+  if (!moving && frameNo % 12 !== 0) return;                 // immobile : on économise les raycasts
+
+  const floorY = raycastFloorYRobust(pos.x, pos.y + EYE_HEIGHT, pos.z);
+  if (floorY !== null) {
+    const targetY = floorY + EYE_HEIGHT, diff = targetY - pos.y;
+    if (Math.abs(diff) < MAX_STEP_UP + EYE_HEIGHT) pos.y += diff * Math.min(1, GROUND_SNAP_SPEED * delta);
+    else if (diff < 0) pos.y += Math.max(diff, -WALK_SPEED * delta * 2);
+  } else {
+    raycaster.set(new THREE.Vector3(pos.x, pos.y - EYE_HEIGHT - (0.05 * SCALE), pos.z), new THREE.Vector3(0, 1, 0));
+    raycaster.far = MAX_STEP_UP + (0.3 * SCALE);
+    const up = raycaster.intersectObjects(collidableMeshes, false);
+    if (up.length > 0) pos.y = up[0].point.y + EYE_HEIGHT;
+  }
+  const ceil = raycastCeilingDist(pos);
+  if (ceil < EYE_HEIGHT) pos.y -= (EYE_HEIGHT - ceil);
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+});
+
+/* ------------------------------------------------------------------ */
+/*  Contact                                                             */
+/* ------------------------------------------------------------------ */
+const cModal = $('contact-modal'), cErr = $('c-error'), cStatus = $('c-status'), cSend = $('c-send');
+const cName = $('c-name'), cEmail = $('c-email'), cMsg = $('c-message');
+function openContact() {
+  contactOpen = true;
+  if (controls.isLocked) controls.unlock();
+  Object.keys(move).forEach((k) => { move[k] = false; });
+  cErr.style.display = 'none'; cStatus.style.display = 'none'; cModal.style.display = 'flex';
+}
+function closeContact() {
+  contactOpen = false; cModal.style.display = 'none';
+  if (entered && !isTouch && !controls.isLocked) showPause();
+}
+$('contact-btn').addEventListener('click', openContact);
+$('c-cancel').addEventListener('click', closeContact);
+cModal.addEventListener('click', (e) => { if (e.target === cModal) closeContact(); });
+function showStatus(text, ok) { cStatus.textContent = text; cStatus.style.color = ok ? '#7be495' : '#ff8686'; cStatus.style.display = 'block'; }
+const E = CFG.emailjs;
+const emailJsConfigured = () => E.service.indexOf('VOTRE_') !== 0 && E.template.indexOf('VOTRE_') !== 0 && E.publicKey.indexOf('VOTRE_') !== 0;
+function sendWithMailto(name, email, message) {
+  const subject = encodeURIComponent('Message depuis la galerie virtuelle - ' + name);
+  const body = encodeURIComponent('Nom : ' + name + '\nEmail : ' + email + '\n\n' + message);
+  window.location.href = 'mailto:' + CFG.contactEmail + '?subject=' + subject + '&body=' + body;
+}
+cSend.addEventListener('click', () => {
+  const name = cName.value.trim(), email = cEmail.value.trim(), message = cMsg.value.trim();
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  cStatus.style.display = 'none';
+  if (!name || !emailOk || !message) { cErr.style.display = 'block'; return; }
+  cErr.style.display = 'none';
+  if (!emailJsConfigured()) {
+    sendWithMailto(name, email, message);
+    cName.value = cEmail.value = cMsg.value = '';
+    closeContact();
+    return;
+  }
+  cSend.disabled = true; cSend.textContent = 'Envoi…';
+  fetch('https://api.emailjs.com/api/v1.0/email/send', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ service_id: E.service, template_id: E.template, user_id: E.publicKey,
+      template_params: { from_name: name, from_email: email, reply_to: email, message } })
+  }).then((res) => {
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    cName.value = cEmail.value = cMsg.value = '';
+    showStatus('Merci ! Ton message a bien été envoyé.', true);
+    setTimeout(closeContact, 2000);
+  }).catch((err) => { console.error('EmailJS', err); showStatus("L'envoi a échoué. Réessaie dans un instant.", false); })
+    .then(() => { cSend.disabled = false; cSend.textContent = 'Envoyer'; });
+});
+</script>
+</body>
+</html>
