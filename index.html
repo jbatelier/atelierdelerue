@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<title>Atelier de la Rue — Galerie virtuelle</title>
+<title>Atelier Delerue — Galerie virtuelle</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#04060c">
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
@@ -52,33 +52,33 @@ window.GALLERY_CONFIG = {
   :root {
     --c1: #00e5ff; --c2: #8a5cff; --c3: #ff3df2; --bg: #04060c;
     --glass: rgba(10, 14, 26, .55); --line: rgba(255, 255, 255, .14);
-    --display: 'Orbitron', 'Segoe UI', system-ui, sans-serif;
+    --k: clamp(54px, 17vmin, 76px); --pad: max(16px, env(safe-area-inset-left)); --display: 'Orbitron', 'Segoe UI', system-ui, sans-serif;
     --body: 'Rajdhani', 'Segoe UI', system-ui, sans-serif;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; font-family: var(--body); color: #fff; }
+  html, body { margin: 0; height: 100%; height: 100dvh; background: var(--bg); overflow: hidden; overscroll-behavior: none; -webkit-text-size-adjust: 100%; font-family: var(--body); color: #fff; }
   #stage { position: fixed; inset: 0; touch-action: none; }
   #stage canvas { display: block; touch-action: none; }
 
   /* ---------- Écran d'accueil / pause ---------- */
   #intro {
-    position: fixed; inset: 0; z-index: 1010; display: flex; align-items: center; justify-content: center;
-    background: var(--bg); overflow: hidden; transition: background .9s ease, opacity .7s ease, visibility .7s;
+    position: fixed; inset: 0; height: 100dvh; z-index: 1010; display: flex; align-items: center; justify-content: center;
+    background: var(--bg); overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); transition: background .9s ease, opacity .7s ease, visibility .7s;
   }
   #intro.ready { background: radial-gradient(ellipse at center, rgba(4,6,12,.35) 0%, rgba(4,6,12,.82) 100%); backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
   #intro.out { opacity: 0; visibility: hidden; pointer-events: none; }
-  .grid { position: absolute; left: -50%; right: -50%; bottom: -8%; height: 70%;
+  .grid { pointer-events: none; position: absolute; left: -50%; right: -50%; bottom: -8%; height: 70%;
     background-image: linear-gradient(rgba(0,229,255,.35) 1px, transparent 1px), linear-gradient(90deg, rgba(0,229,255,.35) 1px, transparent 1px);
     background-size: 64px 64px; transform: perspective(520px) rotateX(62deg); animation: gridmove 3s linear infinite;
     -webkit-mask-image: linear-gradient(to top, #000 10%, transparent 85%); mask-image: linear-gradient(to top, #000 10%, transparent 85%); opacity: .55; transition: opacity .9s; }
   #intro.ready .grid { opacity: .18; }
   @keyframes gridmove { to { background-position: 0 64px; } }
-  .aurora { position: absolute; width: 60vmax; height: 60vmax; border-radius: 50%; filter: blur(90px); opacity: .45; animation: drift 14s ease-in-out infinite alternate; }
+  .aurora { pointer-events: none; position: absolute; width: 60vmax; height: 60vmax; border-radius: 50%; filter: blur(90px); opacity: .45; animation: drift 14s ease-in-out infinite alternate; }
   .aurora.a1 { background: var(--c2); left: -15vmax; top: -20vmax; }
   .aurora.a2 { background: var(--c3); right: -20vmax; bottom: -25vmax; animation-delay: -6s; opacity: .30; }
   .aurora.a3 { background: var(--c1); right: 10vmax; top: -30vmax; opacity: .22; animation-delay: -3s; }
   @keyframes drift { to { transform: translate(8vmax, 6vmax) scale(1.15); } }
-  .card { position: relative; text-align: center; padding: 28px; max-width: 640px; width: 100%; }
+  .card { position: relative; text-align: center; padding: 28px; max-width: 640px; width: 100%; margin: auto; }
   .eyebrow { font-family: var(--display); font-size: 12px; letter-spacing: .5em; color: var(--c1); text-shadow: 0 0 14px rgba(0,229,255,.8); margin-bottom: 18px; }
   .title { font-family: var(--display); font-weight: 900; margin: 0; line-height: 1.05; font-size: clamp(30px, 7.2vw, 66px); letter-spacing: .06em;
     background: linear-gradient(100deg, #fff 0%, var(--c1) 35%, var(--c2) 65%, var(--c3) 100%); background-size: 200% auto;
@@ -105,22 +105,22 @@ window.GALLERY_CONFIG = {
     border: 1px solid rgba(255,255,255,.55); pointer-events: none; z-index: 1005; display: none; transition: transform .2s, border-color .2s, box-shadow .2s; }
   #crosshair::after { content: ''; position: absolute; left: 50%; top: 50%; width: 3px; height: 3px; margin: -1.5px; border-radius: 50%; background: #fff; }
   #crosshair.hot { transform: scale(2); border-color: var(--c1); box-shadow: 0 0 16px var(--c1); }
-  #tag { position: fixed; left: 50%; bottom: 9vh; transform: translate(-50%, 10px); z-index: 1005; opacity: 0; pointer-events: none;
+  #tag { position: fixed; left: 50%; bottom: max(9vh, env(safe-area-inset-bottom)); max-width: 92vw; text-align: center; transform: translate(-50%, 10px); z-index: 1005; opacity: 0; pointer-events: none;
     padding: 12px 22px; border-radius: 999px; background: var(--glass); border: 1px solid rgba(0,229,255,.5); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
     font-size: 16px; letter-spacing: .18em; text-transform: uppercase; box-shadow: 0 0 24px rgba(0,229,255,.25); transition: opacity .25s, transform .25s; }
   #tag.show { opacity: 1; transform: translate(-50%, 0); }
   #tag b { color: var(--c1); }
-  #paint-hud { position: fixed; bottom: 14px; left: 14px; z-index: 1005; pointer-events: none; user-select: none; display: none;
+  #paint-hud { position: fixed; bottom: max(14px, env(safe-area-inset-bottom)); left: max(14px, env(safe-area-inset-left)); max-width: calc(100vw - 28px); z-index: 1005; pointer-events: none; user-select: none; display: none;
     background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); padding: 10px 14px; border-radius: 10px; font-size: 14px; line-height: 1.55; }
   .glassbtn { position: fixed; z-index: 1050; cursor: pointer; color: #fff; font-family: var(--display); font-size: 13px; letter-spacing: .2em; text-transform: uppercase;
     background: var(--glass); border: 1px solid var(--line); border-radius: 12px; padding: 14px 20px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); transition: border-color .2s, box-shadow .2s; }
   .glassbtn:hover { border-color: var(--c1); box-shadow: 0 0 18px rgba(0,229,255,.35); }
-  #contact-btn { top: max(16px, env(safe-area-inset-top)); right: 16px; }
+  #contact-btn { top: max(16px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); }
 
   /* ---------- Croix tactile ---------- */
-  #dpad { position: fixed; bottom: max(22px, env(safe-area-inset-bottom)); left: 22px; z-index: 1040; display: none;
-    grid-template-columns: repeat(3, 76px); grid-template-rows: repeat(3, 76px); gap: 6px; }
-  #dpad button { width: 76px; height: 76px; border-radius: 16px; padding: 0; color: #fff; font-size: 28px; display: flex; align-items: center; justify-content: center;
+  #dpad { position: fixed; bottom: max(22px, env(safe-area-inset-bottom)); left: max(22px, env(safe-area-inset-left)); z-index: 1040; display: none;
+    grid-template-columns: repeat(3, var(--k)); grid-template-rows: repeat(3, var(--k)); gap: 6px; }
+  #dpad button { width: var(--k); height: var(--k); border-radius: 16px; padding: 0; color: #fff; font-size: 28px; display: flex; align-items: center; justify-content: center;
     background: rgba(10,14,26,.5); border: 1px solid rgba(255,255,255,.35); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); touch-action: none; user-select: none; -webkit-user-select: none; }
   #dpad button.active { background: rgba(0,229,255,.35); border-color: var(--c1); box-shadow: 0 0 18px rgba(0,229,255,.6); }
   #dp-up { grid-column: 2; grid-row: 1; } #dp-left { grid-column: 1; grid-row: 2; } #dp-right { grid-column: 3; grid-row: 2; } #dp-down { grid-column: 2; grid-row: 3; }
@@ -128,16 +128,16 @@ window.GALLERY_CONFIG = {
   /* ---------- Visionneuse plein écran ---------- */
   #viewer { position: fixed; inset: 0; z-index: 3000; display: none; align-items: center; justify-content: center; background: rgba(2,3,8,.92); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); opacity: 0; transition: opacity .35s; }
   #viewer.show { opacity: 1; }
-  #v-img { max-width: 92vw; max-height: 82vh; border-radius: 4px; box-shadow: 0 0 0 1px rgba(255,255,255,.12), 0 0 60px rgba(138,92,255,.35), 0 30px 80px rgba(0,0,0,.7); transition: filter .5s; }
+  #v-img { max-width: 92vw; max-height: 82vh; max-height: calc(100dvh - 110px); object-fit: contain; border-radius: 4px; box-shadow: 0 0 0 1px rgba(255,255,255,.12), 0 0 60px rgba(138,92,255,.35), 0 30px 80px rgba(0,0,0,.7); transition: filter .5s; }
   #v-img.blur { filter: blur(10px); }
-  #v-bar { position: absolute; left: 0; right: 0; bottom: max(18px, env(safe-area-inset-bottom)); display: flex; justify-content: center; align-items: center; gap: 14px; font-family: var(--display); font-size: 12px; letter-spacing: .25em; }
+  #v-bar { position: absolute; left: 0; right: 0; bottom: max(18px, env(safe-area-inset-bottom)); display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; padding: 0 10px; font-family: var(--display); font-size: 12px; letter-spacing: .25em; }
   #v-bar button { font: inherit; color: #fff; cursor: pointer; padding: 11px 18px; border-radius: 10px; background: var(--glass); border: 1px solid var(--line); }
   #v-bar button:hover { border-color: var(--c1); }
   #v-count { color: rgba(255,255,255,.65); min-width: 80px; text-align: center; }
 
   /* ---------- Contact ---------- */
-  #contact-modal { position: fixed; inset: 0; z-index: 2000; background: rgba(2,3,8,.75); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; }
-  #contact-box { width: 90%; max-width: 400px; padding: 26px; border-radius: 16px; background: rgba(14,18,32,.85); border: 1px solid var(--line); box-shadow: 0 0 60px rgba(138,92,255,.3); font-family: var(--body); }
+  #contact-modal { position: fixed; inset: 0; height: 100dvh; z-index: 2000; background: rgba(2,3,8,.75); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; }
+  #contact-box { width: 90%; max-width: 400px; max-height: 92dvh; overflow-y: auto; padding: 26px; border-radius: 16px; background: rgba(14,18,32,.85); border: 1px solid var(--line); box-shadow: 0 0 60px rgba(138,92,255,.3); font-family: var(--body); }
   #contact-box h2 { margin: 0 0 16px; font-family: var(--display); font-size: 17px; letter-spacing: .18em; text-transform: uppercase; }
   #contact-box input, #contact-box textarea { width: 100%; margin-bottom: 10px; padding: 11px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.06); color: #fff; font: 500 16px var(--body); }
   #contact-box input:focus, #contact-box textarea:focus { outline: none; border-color: var(--c1); box-shadow: 0 0 12px rgba(0,229,255,.3); }
@@ -149,6 +149,34 @@ window.GALLERY_CONFIG = {
   #c-send:disabled { opacity: .6; cursor: default; }
   #c-error { color: #ff8686; font-size: 14px; margin: -4px 0 10px; display: none; }
   #c-status { font-size: 14px; margin: -4px 0 10px; display: none; }
+
+  /* ---------- Adaptation aux écrans ---------- */
+  @media (max-width: 520px) {
+    .card { padding: 16px; }
+    .eyebrow { font-size: 10px; letter-spacing: .38em; margin-bottom: 12px; }
+    .sub { font-size: 14px; letter-spacing: .2em; margin: 10px 0 24px; }
+    #enter { font-size: 13px; letter-spacing: .3em; padding: 16px 34px 16px 40px; }
+    .hints { font-size: 13px; margin-top: 24px; }
+    .glassbtn { font-size: 11px; padding: 11px 14px; }
+    #v-bar button { padding: 10px 14px; letter-spacing: .15em; }
+    #tag { font-size: 13px; letter-spacing: .1em; padding: 10px 16px; }
+  }
+  @media (max-height: 520px) and (orientation: landscape) {
+    .card { padding: 8px 20px; }
+    .eyebrow { margin-bottom: 6px; font-size: 10px; }
+    .title { font-size: clamp(22px, 6vh, 40px); }
+    .sub { margin: 6px 0 14px; font-size: 13px; }
+    .loadbox { margin-bottom: 14px; }
+    #enter { padding: 12px 34px 12px 40px; font-size: 13px; }
+    .hints { margin-top: 12px; gap: 6px; font-size: 12px; }
+    .hints span { padding: 4px 8px; }
+    #dpad { bottom: max(12px, env(safe-area-inset-bottom)); gap: 4px; }
+    #tag { bottom: 6vh; }
+    #v-img { max-height: calc(100dvh - 70px); }
+    #contact-box { padding: 16px; }
+    #contact-box h2 { margin-bottom: 10px; font-size: 15px; }
+    #contact-box textarea { min-height: 56px; }
+  }
 </style>
 </head>
 <body>
@@ -159,7 +187,7 @@ window.GALLERY_CONFIG = {
   <div class="grid"></div><div class="aurora a1"></div><div class="aurora a2"></div><div class="aurora a3"></div>
   <div class="card">
     <div class="eyebrow">GALERIE VIRTUELLE</div>
-    <h1 class="title">ATELIER<br>DE LA RUE</h1>
+    <h1 class="title">ATELIER<br>DELERUE</h1>
     <div class="sub" id="mode-title"><span id="count"></span> œuvres</div>
     <div class="loadbox" id="loadbox">
       <div class="track"><div id="barfill"></div></div>
@@ -251,7 +279,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping = CFG.toneMapping === 'aces' ? THREE.ACESFilmicToneMapping : THREE.LinearToneMapping;
 renderer.toneMappingExposure = CFG.exposure;
 $('stage').appendChild(renderer.domElement);
-const maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+const maxAniso = Math.min(16, renderer.capabilities.getMaxAnisotropy());
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x05070d);
@@ -281,7 +309,7 @@ const FXShader = {
     'float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }',
     'void main(){',
     '  vec2 c = vUv - 0.5; float d = dot(c, c);',
-    '  vec2 off = c * d * 0.014;',
+    '  vec2 off = c * d * 0.005;',
     '  vec3 col = vec3(texture2D(tDiffuse, vUv + off).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv - off).b);',
     '  col *= 1.0 - smoothstep(0.12, 0.8, d * 1.7) * 0.5;',
     '  col += (h(vUv * vec2(1920.0, 1080.0) + uTime) - 0.5) * 0.022;',
@@ -320,7 +348,8 @@ function showPause() {
   intro.classList.remove('out');
   crosshair.style.display = 'none';
 }
-function startWarp() { camera.fov = 96; }
+function baseFov() { const a = window.innerWidth / Math.max(1, window.innerHeight); return a >= 1.2 ? 70 : Math.min(100, 2 * Math.atan(Math.tan(40 * Math.PI / 360 * 2) / a) * 180 / Math.PI); }
+function startWarp() { camera.fov = baseFov() + 26; }
 enterBtn.addEventListener('click', () => {
   if (!modelReady) return;
   if (!entered) { entered = true; startWarp(); $('hints').style.display = 'none'; }
@@ -485,7 +514,7 @@ function endTouch(e) {
   if (!ended) return;
   if (!touchLook.moved) {
     const idx = paintingAtScreenPoint(touchLook.startX, touchLook.startY);
-    if (idx >= 0 && !isAdmin) openViewer(idx);
+    if (idx >= 0 && !isAdmin) { if (e.cancelable) e.preventDefault(); openViewer(idx); }
     else startAutoMoveToScreenPoint(touchLook.startX, touchLook.startY);
   }
   touchLook.active = false; touchLook.id = null;
@@ -667,6 +696,7 @@ function clearPaintings() {
       if (o.userData && o.userData.own && o.material) o.material.dispose();
     });
   });
+  hdState.forEach((v) => { if (v.tex) v.tex.dispose(); }); hdState.clear();
   paintingGroups.length = 0; canvases.length = 0; placedPaintings.length = 0; fades.length = 0;
 }
 
@@ -697,6 +727,56 @@ window.__early.remote.then((arr) => {
   else if (records === null) setRecords(readCache() || []);
 });
 
+
+/* Haute définition : les tableaux proches passent en version HD (hd/<nom>.webp) */
+const hdState = new Map();            // idx -> { state: 'loading' | 'ready' | 'fail', tex }
+let hdLoading = 0;
+const HD_RANGE = () => 8 * SCALE, HD_KEEP = isTouch ? 4 : 10;
+function setPaintingTex(idx, tex) {
+  canvases.forEach((c) => { if (c.userData.index === idx) { c.material.uniforms.uB.value = tex; c.material.uniforms.uMix.value = 1; } });
+}
+function loadHD(idx) {
+  hdState.set(idx, { state: 'loading', tex: null }); hdLoading++;
+  const img = new Image(); img.decoding = 'async';
+  img.src = TEX_BASE + 'hd/' + MANIFEST[idx].n + '.webp';
+  img.decode().then(() => {
+    const tex = new THREE.Texture(img);
+    tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = maxAniso; tex.needsUpdate = true;
+    try { renderer.initTexture(tex); } catch (e) { /* upload au 1er rendu */ }
+    hdState.set(idx, { state: 'ready', tex });
+    setPaintingTex(idx, tex);
+  }).catch(() => { hdState.set(idx, { state: 'fail', tex: null }); })
+    .then(() => { hdLoading--; });
+}
+function updateHD() {
+  if (!modelReady || !canvases.length) return;
+  const cp = camera.position, R2 = HD_RANGE() * HD_RANGE();
+  let best = -1, bd = Infinity;
+  for (let i = 0; i < canvases.length; i++) {
+    const idx = canvases[i].userData.index;
+    if (hdState.has(idx)) continue;
+    const d = canvases[i].parent.position.distanceToSquared(cp);
+    if (d < R2 && d < bd) { bd = d; best = idx; }
+  }
+  if (best >= 0 && hdLoading < 2) loadHD(best);
+  // libère les HD les plus éloignées (mémoire, surtout sur mobile)
+  const ready = [];
+  hdState.forEach((v, idx) => { if (v.state === 'ready') ready.push(idx); });
+  if (ready.length > HD_KEEP) {
+    let far = -1, fd = -1;
+    ready.forEach((idx) => {
+      const c = canvases.find((k) => k.userData.index === idx);
+      const d = c ? c.parent.position.distanceToSquared(cp) : Infinity;
+      if (d > fd) { fd = d; far = idx; }
+    });
+    if (far >= 0) {
+      const v = hdState.get(far), full = fullEntries.get(far);
+      setPaintingTex(far, (full && full.tex) || lqTexture(far));
+      v.tex.dispose(); hdState.delete(far);
+    }
+  }
+}
+
 /* Survol / clic sur un tableau */
 const hoverRay = new THREE.Raycaster();
 let hoveredCanvas = null;
@@ -712,6 +792,7 @@ function updateHover(dt) {
   hoverTimer += dt;
   if (hoverTimer > 0.08) {
     hoverTimer = 0;
+    updateHD();
     let found = null;
     if (controls.isLocked && !isAdmin && !uiBusy() && canvases.length) {
       hoverRay.set(camera.position, camera.getWorldDirection(new THREE.Vector3()));
@@ -731,13 +812,21 @@ function updateHover(dt) {
   }
 }
 renderer.domElement.addEventListener('click', () => {
-  if (controls.isLocked && hoveredCanvas && !isAdmin) openViewer(hoveredCanvas.userData.index);
+  if (!controls.isLocked || isAdmin || uiBusy()) return;
+  let idx = hoveredCanvas ? hoveredCanvas.userData.index : -1;
+  if (idx < 0) {                                  // le survol se met à jour 12x/s : on revérifie au moment du clic
+    hoverRay.set(camera.position, camera.getWorldDirection(new THREE.Vector3()));
+    hoverRay.far = 14 * SCALE;
+    const hit = hoverRay.intersectObjects(canvases, false)[0];
+    if (hit) idx = hit.object.userData.index;
+  }
+  if (idx >= 0) openViewer(idx);
 });
 
 /* Visionneuse plein écran */
-let viewerIdx = 0;
+let viewerIdx = 0, viewerOpenedAt = 0;
 function openViewer(idx) {
-  viewerOpen = true; viewerIdx = idx;
+  viewerOpen = true; viewerIdx = idx; viewerOpenedAt = Date.now();
   if (controls.isLocked) controls.unlock();
   Object.keys(move).forEach((k) => { move[k] = false; });
   $('tag').classList.remove('show');
@@ -749,6 +838,7 @@ function showViewerImage() {
   const m = MANIFEST[viewerIdx], img = $('v-img');
   $('v-count').textContent = (viewerIdx + 1) + ' / ' + MANIFEST.length;
   img.classList.add('blur');
+  img.onerror = () => { img.onerror = null; img.src = m.l; img.classList.remove('blur'); };   // image absente : on montre la miniature
   img.src = TEX_BASE + m.n + '.webp';              // déjà en cache : instantané
   const hd = new Image();
   hd.onload = () => { if (MANIFEST[viewerIdx] === m) { img.src = hd.src; img.classList.remove('blur'); } };
@@ -757,6 +847,7 @@ function showViewerImage() {
   setTimeout(() => img.classList.remove('blur'), 900);
 }
 function closeViewer(relock) {
+  if (!viewerOpen) return;
   viewerOpen = false;
   const v = $('viewer'); v.classList.remove('show');
   setTimeout(() => { if (!viewerOpen) v.style.display = 'none'; }, 350);
@@ -766,7 +857,7 @@ function closeViewer(relock) {
 $('v-close').addEventListener('click', () => closeViewer(true));
 $('v-prev').addEventListener('click', () => { viewerIdx = (viewerIdx + MANIFEST.length - 1) % MANIFEST.length; showViewerImage(); });
 $('v-next').addEventListener('click', () => { viewerIdx = (viewerIdx + 1) % MANIFEST.length; showViewerImage(); });
-$('viewer').addEventListener('click', (e) => { if (e.target === $('viewer')) closeViewer(true); });
+$('viewer').addEventListener('click', (e) => { if (e.target === $('viewer') && Date.now() - viewerOpenedAt > 500) closeViewer(true); });
 
 /* ------------------------------------------------------------------ */
 /*  Administration (placement des tableaux)                            */
@@ -1024,9 +1115,9 @@ function animate() {
   }
   applyTouchLook();
 
-  if (camera.fov > 70.01) {                                   // petit "warp" à l'entrée
-    camera.fov += (70 - camera.fov) * Math.min(1, dt * 3.2);
-    if (camera.fov < 70.05) camera.fov = 70;
+  if (camera.fov > baseFov() + 0.01) {                                   // petit "warp" à l'entrée
+    const bf = baseFov(); camera.fov += (bf - camera.fov) * Math.min(1, dt * 3.2);
+    if (camera.fov < bf + 0.05) camera.fov = bf;
     camera.updateProjectionMatrix();
   }
 
@@ -1113,12 +1204,24 @@ function updateMovement(delta) {
   if (ceil < EYE_HEIGHT) pos.y -= (EYE_HEIGHT - ceil);
 }
 
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+function onResize() {
+  const vv = window.visualViewport;
+  const w = Math.round(vv ? vv.width : window.innerWidth), h = Math.round(vv ? vv.height : window.innerHeight);
+  if (!w || !h) return;
+  camera.aspect = w / h;
+  if (camera.fov <= baseFov() + 0.05) camera.fov = baseFov();   // pas pendant l'effet d'entrée
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  if (composer) composer.setSize(window.innerWidth, window.innerHeight);
-});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isTouch ? 1.5 : 2));
+  renderer.setSize(w, h);
+  if (composer) composer.setSize(w, h);
+  document.documentElement.style.setProperty('--vh', h + 'px');
+}
+let resizeTimer = null;
+const scheduleResize = () => { onResize(); clearTimeout(resizeTimer); resizeTimer = setTimeout(onResize, 250); };
+window.addEventListener('resize', scheduleResize);
+window.addEventListener('orientationchange', scheduleResize);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', scheduleResize);
+onResize();
 
 /* ------------------------------------------------------------------ */
 /*  Contact                                                             */
