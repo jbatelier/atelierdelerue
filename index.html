@@ -130,6 +130,7 @@ window.GALLERY_CONFIG = {
   #viewer.show { opacity: 1; }
   #v-img { max-width: 92vw; max-height: 82vh; max-height: calc(100dvh - 110px); object-fit: contain; border-radius: 4px; box-shadow: 0 0 0 1px rgba(255,255,255,.12), 0 0 60px rgba(138,92,255,.35), 0 30px 80px rgba(0,0,0,.7); transition: filter .5s; }
   #v-img.blur { filter: blur(10px); }
+  #v-msg { display: none; position: absolute; top: max(14px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); max-width: 90vw; text-align: center; padding: 8px 14px; border-radius: 8px; background: var(--glass); border: 1px solid rgba(255,134,134,.6); color: #ff8686; font-size: 14px; }
   #v-bar { position: absolute; left: 0; right: 0; bottom: max(18px, env(safe-area-inset-bottom)); display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; padding: 0 10px; font-family: var(--display); font-size: 12px; letter-spacing: .25em; }
   #v-bar button { font: inherit; color: #fff; cursor: pointer; padding: 11px 18px; border-radius: 10px; background: var(--glass); border: 1px solid var(--line); }
   #v-bar button:hover { border-color: var(--c1); }
@@ -209,6 +210,7 @@ window.GALLERY_CONFIG = {
 
 <div id="viewer">
   <img id="v-img" alt="Tableau">
+  <div id="v-msg"></div>
   <div id="v-bar"><button id="v-prev">◀</button><span id="v-count"></span><button id="v-next">▶</button><button id="v-close">FERMER ✕</button></div>
 </div>
 
@@ -545,6 +547,22 @@ setupDpad('dp-up', 'forward'); setupDpad('dp-down', 'back'); setupDpad('dp-left'
 /*  Tableaux : affichage instantané (miniature floue -> image nette)   */
 /* ------------------------------------------------------------------ */
 const texLoader = new THREE.TextureLoader();
+/* Cherche l'image sous plusieurs extensions (webp, jpg, jpeg, png) et retient celle qui marche */
+const IMG_EXTS = ['webp', 'jpg', 'jpeg', 'png'];
+let learnedExt = null, missCount = 0;
+function loadFirst(dir, n) {
+  if (!learnedExt && missCount >= 4 && dir === TEX_BASE) return Promise.reject(new Error('dossier images introuvable'));
+  const order = learnedExt ? [learnedExt].concat(IMG_EXTS.filter((e) => e !== learnedExt)) : IMG_EXTS;
+  let i = 0;
+  const attempt = () => {
+    if (i >= order.length) { if (!learnedExt) missCount++; return Promise.reject(new Error('introuvable : ' + dir + n)); }
+    const ext = order[i++], img = new Image();
+    img.decoding = 'async';
+    img.src = dir + n + '.' + ext;
+    return img.decode().then(() => { if (dir === TEX_BASE) learnedExt = ext; return img; }, attempt);
+  };
+  return attempt();
+}
 const lqCache = new Map();
 function lqTexture(idx) {
   let t = lqCache.get(idx);
@@ -580,16 +598,13 @@ function pumpLoads() {
     }
     const idx = loadQueue.splice(bi, 1)[0];
     activeLoads++;
-    const img = new Image();
-    img.decoding = 'async';
-    img.src = TEX_BASE + MANIFEST[idx].n + '.webp';
-    img.decode().then(() => {
+    loadFirst(TEX_BASE, MANIFEST[idx].n).then((img) => {
       const tex = new THREE.Texture(img);
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = maxAniso;
       tex.needsUpdate = true;
       uploadQueue.push({ idx, tex });
-    }).catch((err) => console.warn('Image introuvable : ' + img.src, err))
+    }).catch((err) => console.warn('Image introuvable : ' + TEX_BASE + MANIFEST[idx].n, err))
       .then(() => { activeLoads--; pumpLoads(); });
   }
 }
@@ -737,9 +752,7 @@ function setPaintingTex(idx, tex) {
 }
 function loadHD(idx) {
   hdState.set(idx, { state: 'loading', tex: null }); hdLoading++;
-  const img = new Image(); img.decoding = 'async';
-  img.src = TEX_BASE + 'hd/' + MANIFEST[idx].n + '.webp';
-  img.decode().then(() => {
+  loadFirst(TEX_BASE + 'hd/', MANIFEST[idx].n).then((img) => {
     const tex = new THREE.Texture(img);
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = maxAniso; tex.needsUpdate = true;
     try { renderer.initTexture(tex); } catch (e) { /* upload au 1er rendu */ }
@@ -835,16 +848,30 @@ function openViewer(idx) {
   requestAnimationFrame(() => v.classList.add('show'));
 }
 function showViewerImage() {
-  const m = MANIFEST[viewerIdx], img = $('v-img');
+  const m = MANIFEST[viewerIdx], img = $('v-img'), msg = $('v-msg');
+  const cur = () => MANIFEST[viewerIdx] === m;
   $('v-count').textContent = (viewerIdx + 1) + ' / ' + MANIFEST.length;
+  msg.style.display = 'none';
+  // taille calculée d'après les proportions du tableau : même la miniature est affichée en grand
+  const availH = Math.max(120, window.innerHeight - 100), availW = window.innerWidth * 0.92;
+  img.style.width = Math.round(Math.min(availW, availH * (m.w / m.h))) + 'px';
+  img.style.height = 'auto';
   img.classList.add('blur');
-  img.onerror = () => { img.onerror = null; img.src = m.l; img.classList.remove('blur'); };   // image absente : on montre la miniature
-  img.src = TEX_BASE + m.n + '.webp';              // déjà en cache : instantané
-  const hd = new Image();
-  hd.onload = () => { if (MANIFEST[viewerIdx] === m) { img.src = hd.src; img.classList.remove('blur'); } };
-  hd.onerror = () => img.classList.remove('blur');
-  hd.src = TEX_BASE + 'hd/' + m.n + '.webp';
-  setTimeout(() => img.classList.remove('blur'), 900);
+  img.onerror = null;
+  img.src = m.l;                                              // miniature immédiate (floue)
+  let hdDone = false;
+  loadFirst(TEX_BASE, m.n).then((im) => {
+    if (cur() && !hdDone) { img.src = im.src; img.classList.remove('blur'); }
+  }, () => {
+    if (!cur()) return;
+    img.classList.remove('blur');
+    msg.textContent = "Image introuvable sur le site (dossier « paintings »)";
+    msg.style.display = 'block';
+  });
+  loadFirst(TEX_BASE + 'hd/', m.n).then((im) => {
+    if (cur()) { hdDone = true; img.src = im.src; img.classList.remove('blur'); msg.style.display = 'none'; }
+  }, () => {});
+  setTimeout(() => { if (cur()) img.classList.remove('blur'); }, 1200);
 }
 function closeViewer(relock) {
   if (!viewerOpen) return;
