@@ -211,7 +211,7 @@ window.GALLERY_CONFIG = {
 <div id="viewer">
   <img id="v-img" alt="Tableau">
   <div id="v-msg"></div>
-  <div id="v-bar"><button id="v-prev">◀</button><span id="v-count"></span><button id="v-next">▶</button><button id="v-close">FERMER ✕</button></div>
+  <div id="v-bar"><button id="v-close">FERMER ✕</button></div>
 </div>
 
 <div id="contact-modal">
@@ -850,7 +850,6 @@ function openViewer(idx) {
 function showViewerImage() {
   const m = MANIFEST[viewerIdx], img = $('v-img'), msg = $('v-msg');
   const cur = () => MANIFEST[viewerIdx] === m;
-  $('v-count').textContent = (viewerIdx + 1) + ' / ' + MANIFEST.length;
   msg.style.display = 'none';
   // taille calculée d'après les proportions du tableau : même la miniature est affichée en grand
   const availH = Math.max(120, window.innerHeight - 100), availW = window.innerWidth * 0.92;
@@ -882,8 +881,6 @@ function closeViewer(relock) {
   if (relock) { try { controls.lock(); } catch (e) { showPause(); } } else showPause();
 }
 $('v-close').addEventListener('click', () => closeViewer(true));
-$('v-prev').addEventListener('click', () => { viewerIdx = (viewerIdx + MANIFEST.length - 1) % MANIFEST.length; showViewerImage(); });
-$('v-next').addEventListener('click', () => { viewerIdx = (viewerIdx + 1) % MANIFEST.length; showViewerImage(); });
 $('viewer').addEventListener('click', (e) => { if (e.target === $('viewer') && Date.now() - viewerOpenedAt > 500) closeViewer(true); });
 
 /* ------------------------------------------------------------------ */
