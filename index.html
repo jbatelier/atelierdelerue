@@ -111,6 +111,23 @@ window.GALLERY_CONFIG = {
   .hints span { padding: 6px 12px; border-radius: 8px; background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
   .hints b { color: var(--c1); font-weight: 600; }
 
+  /* ---------- Écran d'accueil : version "tableau aux triangles" ---------- */
+  #intro { --c1: #ffd447; --c2: #ff5fa2; --c3: #5b7cf0; }
+  .grid, .aurora { display: none; }
+  #shards { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: .92; transition: opacity 1.2s ease; }
+  #intro.ready #shards { opacity: .34; }
+  #intro .card::before { content: ''; position: absolute; inset: -12% -8%; z-index: -1; pointer-events: none;
+    background: radial-gradient(ellipse at center, rgba(4,6,12,.74) 0%, rgba(4,6,12,.5) 45%, rgba(4,6,12,0) 72%); }
+  #intro .eyebrow { text-shadow: 0 0 14px rgba(255,212,71,.75); }
+  #intro .title { filter: drop-shadow(0 2px 16px rgba(0,0,0,.55)); }
+  #intro #barfill { background: linear-gradient(90deg, #4f6fe0, #e6559f, #f08c5c, #ffd447); box-shadow: 0 0 16px rgba(255,150,90,.8); }
+  #intro #enter { border-color: rgba(255,212,71,.85); background: rgba(255,212,71,.1);
+    box-shadow: 0 0 0 0 rgba(255,150,90,.6), inset 0 0 22px rgba(255,212,71,.2); }
+  #intro #enter.show { animation: pulseArt 2.2s ease-out infinite; }
+  #intro #enter:hover { background: rgba(255,212,71,.26); }
+  @keyframes pulseArt { 0% { box-shadow: 0 0 0 0 rgba(255,150,90,.55), inset 0 0 22px rgba(255,212,71,.2); } 100% { box-shadow: 0 0 0 26px rgba(255,150,90,0), inset 0 0 22px rgba(255,212,71,.2); } }
+  @media (prefers-reduced-motion: reduce) { #intro .title, #intro #enter.show { animation: none; } }
+
   /* ---------- HUD ---------- */
   #crosshair { position: fixed; top: 50%; left: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%;
     border: 1px solid rgba(255,255,255,.55); pointer-events: none; z-index: 1005; display: none; transition: transform .2s, border-color .2s, box-shadow .2s; }
@@ -196,7 +213,7 @@ window.GALLERY_CONFIG = {
 <div id="stage"></div>
 
 <div id="intro">
-  <div class="grid"></div><div class="aurora a1"></div><div class="aurora a2"></div><div class="aurora a3"></div>
+  <canvas id="shards"></canvas>
   <div class="card">
     <div class="eyebrow">GALERIE VIRTUELLE</div>
     <h1 class="title">ATELIER<br>DELERUE</h1>
@@ -209,6 +226,102 @@ window.GALLERY_CONFIG = {
     <div class="hints" id="hints"></div>
   </div>
 </div>
+
+
+<script>
+/* Animation d'entrée : le tableau aux triangles se compose pendant le chargement */
+(function () {
+  var cv = document.getElementById('shards'), intro = document.getElementById('intro'), bar = document.getElementById('barfill');
+  if (!cv || !cv.getContext) return;
+  var ctx = cv.getContext('2d'), W = 0, H = 0, dpr = 1;
+  var RATIO = 765 / 643;                                   // format du tableau
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var P = [[0,0],[.42,0],[.62,0],[.9,0],[1,0],[1,.2],[1,.58],[1,1],[.5,1],[.33,1],[0,1],[0,.33],
+           [.23,.39],[.48,.3],[.4,.69],[.08,.69],[.55,.4],[.72,.52],[.62,.2],[.8,.58],[.7,.78],[.58,.7],[.52,.5]];
+  var COL = {
+    y:['#f7dc4f','#e9c872'], b:['#4f6fe0','#8c8be8'], v:['#8e5fc4','#c27fd0'], p:['#e6559f','#f08fb8'],
+    m:['#c23d78','#e0509f'], o:['#f08c5c','#f7bda0'], pe:['#f6b99c','#fbd9c4'], g:['#3f9c7e','#7cc3a0'],
+    t:['#3fa6b6','#78c6d4'], lb:['#79aee9','#a9c8f2'], pu:['#9a4f9a','#c08ac0'], l:['#6cc04a','#b4dc5a']
+  };
+  var T = [[0,11,12,'y'],[0,12,1,'b'],[1,12,13,'m'],[11,15,12,'pe'],[11,10,15,'g'],[12,15,14,'b'],[12,14,13,'o'],
+           [15,10,9,'y'],[15,9,14,'lb'],[1,2,13,'p'],[2,18,13,'pu'],[2,3,18,'y'],[3,4,5,'v'],[3,5,18,'pe'],
+           [13,18,16,'o'],[18,5,17,'g'],[5,6,17,'b'],[18,17,16,'y'],[13,16,22,'pu'],[13,22,14,'v'],[17,6,19,'pu'],
+           [22,16,17,'lb'],[22,17,19,'t'],[22,19,21,'o'],[22,21,14,'p'],[14,21,9,'b'],[9,21,8,'pu'],[21,20,8,'o'],
+           [21,19,20,'y'],[19,6,20,'m'],[6,7,20,'l'],[20,7,8,'y']];
+
+  // ordre d'apparition : en vagues depuis le centre du tableau, avec un peu de hasard
+  var seed = 7; function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  var tris = T.map(function (t, i) {
+    var a = P[t[0]], b = P[t[1]], c = P[t[2]];
+    var cx = (a[0] + b[0] + c[0]) / 3, cy = (a[1] + b[1] + c[1]) / 3;
+    return { a: a, b: b, c: c, cx: cx, cy: cy, col: COL[t[3]], flip: i % 2,
+             d: Math.hypot(cx - .48, cy - .42) + rnd() * .18, rot: (rnd() - .5) * .9, ph: rnd() * 6.28 };
+  });
+  tris.slice().sort(function (x, y) { return x.d - y.d; }).forEach(function (t, k) { t.ord = k / (tris.length - 1); });
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    W = intro.clientWidth || window.innerWidth; H = intro.clientHeight || window.innerHeight;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  }
+  window.addEventListener('resize', resize); resize();
+
+  var ease = function (x) { return x * x * (3 - 2 * x); };
+  var sp = 0, last = performance.now(), t0 = last;
+
+  function draw(now) {
+    requestAnimationFrame(draw);
+    if (intro.classList.contains('out')) { last = now; return; }     // écran caché : on ne dessine rien
+    var dt = Math.min(.05, (now - last) / 1000); last = now;
+    var time = (now - t0) / 1000;
+    var target = intro.classList.contains('ready') ? 1 : Math.min(1, (parseFloat(bar.style.width) || 0) / 100);
+    // le tableau se compose même si le chargement est très rapide (lissage)
+    sp += (target - sp) * Math.min(1, dt * 2.2); if (target - sp < .002) sp = target;
+    if (reduce) sp = target;
+
+    var w0 = Math.max(W, H * RATIO), h0 = w0 / RATIO, ox = (W - w0) / 2, oy = (H - h0) / 2;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    ctx.lineJoin = 'round';
+    var X = function (u) { return ox + u * w0; }, Y = function (v) { return oy + v * h0; };
+
+    for (var i = 0; i < tris.length; i++) {
+      var t = tris[i];
+      var l = Math.max(0, Math.min(1, (sp * 1.0 - t.ord * .72) / .28));
+      if (l <= 0) continue;
+      var e = ease(l), k = .55 + .45 * e;
+      var drift = reduce ? 0 : Math.sin(time * .5 + t.ph) * 3, breathe = reduce ? 1 : .88 + .12 * Math.sin(time * .9 + t.ph);
+      var cx = X(t.cx), cy = Y(t.cy), ang = t.rot * (1 - e);
+      var cs = Math.cos(ang), sn = Math.sin(ang);
+      var pts = [t.a, t.b, t.c].map(function (q) {
+        var dx = (X(q[0]) - cx) * k, dy = (Y(q[1]) - cy) * k;
+        return [cx + dx * cs - dy * sn + drift, cy + dx * sn + dy * cs + drift * .6 + (1 - e) * 26];
+      });
+      var ys = pts.map(function (q) { return q[1]; }), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+      var g = ctx.createLinearGradient(0, t.flip ? y1 : y0, 0, t.flip ? y0 : y1);
+      g.addColorStop(0, t.col[0]); g.addColorStop(1, t.col[1]);
+      ctx.globalAlpha = e * breathe;
+      ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); ctx.lineTo(pts[1][0], pts[1][1]); ctx.lineTo(pts[2][0], pts[2][1]); ctx.closePath();
+      ctx.fillStyle = g; ctx.fill();
+      ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,.28)'; ctx.stroke();
+    }
+
+    // les deux aplats cuivrés du tableau, quand la composition est presque finie
+    var ca = Math.max(0, (sp - .8) / .2);
+    if (ca > 0) {
+      ctx.globalAlpha = ease(ca) * .9;
+      var r1 = [.58, .09, .33, .2], r2 = [.08, .7, .32, .19];
+      var g1 = ctx.createLinearGradient(X(r1[0]), 0, X(r1[0] + r1[2]), 0); g1.addColorStop(0, '#b9763b'); g1.addColorStop(1, '#f1d9b8');
+      ctx.fillStyle = g1; ctx.fillRect(X(r1[0]), Y(r1[1]), r1[2] * w0, r1[3] * h0);
+      var g2 = ctx.createLinearGradient(X(r2[0]), 0, X(r2[0] + r2[2]), 0); g2.addColorStop(0, '#7b3a1a'); g2.addColorStop(1, '#c58c57');
+      ctx.fillStyle = g2; ctx.fillRect(X(r2[0]), Y(r2[1]), r2[2] * w0, r2[3] * h0);
+    }
+    ctx.globalAlpha = 1;
+  }
+  requestAnimationFrame(draw);
+})();
+</script>
 
 <div id="crosshair"></div>
 <div id="tag"><b>◈</b>&nbsp; Clic · voir l'œuvre en grand</div>
