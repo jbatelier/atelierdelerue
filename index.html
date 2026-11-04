@@ -26,12 +26,12 @@ window.GALLERY_CONFIG = {
   exposure: 1.0,          // luminosité globale (monte à 1.2 si c'est trop sombre)
   toneMapping: 'linear',  // 'linear' = couleurs fidèles des tableaux | 'aces' = rendu plus cinéma
   darken: 0.55,           // assombrissement des matériaux du modèle
-  bloom: 0.55,             // intensité du halo lumineux (0 = désactivé) — PC uniquement
+  bloom: 0.2,              // intensité du halo lumineux (0 = désactivé) — PC uniquement
   // --- Éclairage (modifiable) ---
   ambient: 1.0,           // lumière de fond de la salle (monte à 1.4 si c'est trop sombre)
   wallGlow: 0.4,          // lueur propre aux structures blanches du modèle (1 = comme avant, 0 = aucune)
   sunColor: 0xff9a52,     // couleur du soleil couchant
-  sunIntensity: 9,        // force du soleil qui entre par la verrière
+  sunIntensity: 4,        // force du soleil qui entre par la verrière
   sunElevation: 24,       // hauteur du soleil en degrés (petit = soleil rasant)
   sunAzimuth: 270,        // direction du soleil en degrés (0, 90, 180, 270 : change si les rayons tombent mal)
   skyShafts: 0.14,        // rayons visibles dans l'air sous la verrière (0 = désactivé)
@@ -469,7 +469,7 @@ function buildComposer() {
   composer.setPixelRatio(pr);
   composer.setSize(w, h);
   composer.addPass(new RenderPass(scene, camera));
-  bloom = new UnrealBloomPass(new THREE.Vector2(w, h), CFG.bloom, 0.65, 0.92);
+  bloom = new UnrealBloomPass(new THREE.Vector2(w, h), CFG.bloom, 0.5, 1.0);
   bloom.enabled = CFG.bloom > 0;
   composer.addPass(bloom);
   fxPass = new ShaderPass(FXShader);
@@ -1330,7 +1330,7 @@ function onModelBuilt(gltf) {
         else m.color.multiplyScalar(emissive ? CFG.darken * 0.5 : CFG.darken);
       }
       if ('envMapIntensity' in m) m.envMapIntensity = 0.6;
-      if (m.name === 'floor') { m.roughness = 0.3; m.envMapIntensity = 1.2; }
+      if (m.name === 'floor') { m.roughness = 0.55; m.envMapIntensity = 0.7; }
       if (m.name === 'chrome') m.envMapIntensity = 1.4;
       if (m.name === 'glass') m.envMapIntensity = 1.2;
       if (m.name === 'white' && m.emissive) m.emissive.multiplyScalar(CFG.wallGlow);   // les structures ne brillent plus d'elles-mêmes
