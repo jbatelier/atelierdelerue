@@ -151,6 +151,9 @@ window.GALLERY_CONFIG = {
   #dpad button { width: var(--k); height: var(--k); border-radius: 16px; padding: 0; color: #fff; font-size: 28px; display: flex; align-items: center; justify-content: center;
     background: rgba(10,14,26,.5); border: 1px solid rgba(255,255,255,.35); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); touch-action: none; user-select: none; -webkit-user-select: none; }
   #dpad button.active { background: rgba(0,229,255,.35); border-color: var(--c1); box-shadow: 0 0 18px rgba(0,229,255,.6); }
+  /* Pas de flèches pendant l'écran de chargement / pause : elles n'apparaissent qu'une fois dans la galerie */
+  #intro:not(.out) ~ #dpad { visibility: hidden; opacity: 0; pointer-events: none; }
+  #dpad { transition: opacity .4s ease; }
   #dp-up { grid-column: 2; grid-row: 1; } #dp-left { grid-column: 1; grid-row: 2; } #dp-right { grid-column: 3; grid-row: 2; } #dp-down { grid-column: 2; grid-row: 3; }
 
   /* ---------- Visionneuse plein écran ---------- */
