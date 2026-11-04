@@ -789,6 +789,25 @@ function applyPaintingOrientation(obj, normal, rotationDeg) {
   const align = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
   const spin = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), THREE.MathUtils.degToRad(rotationDeg || 0));
   obj.quaternion.copy(align).multiply(spin);
+  obj.userData.spin = rotationDeg || 0;
+  if (obj.userData.lampG) layoutLamp(obj);      // la lampe reste toujours au-dessus du tableau, même s'il est tourné
+}
+
+/* Lampe à bras : toujours en haut du tableau tel qu'on le voit (on annule la rotation du tableau) */
+function layoutLamp(g) {
+  const u = g.userData, S = SCALE, b = 0.04 * S, armL = 0.3 * S;
+  const rot = THREE.MathUtils.degToRad(u.spin || 0), c = Math.abs(Math.cos(rot)), sn = Math.abs(Math.sin(rot));
+  const vh = (u.h * c + u.w * sn) / 2, vw = u.w * c + u.h * sn;           // taille visible du tableau
+  const lampW = Math.max(0.35 * S, Math.min(vw * 0.55, 1.4 * S));
+  const lampY = vh + b + 0.16 * S;
+  const lg = u.lampG;
+  lg.rotation.z = -rot;
+  lg.userData.arm.position.set(0, lampY, armL / 2);
+  lg.userData.head.position.set(0, lampY, armL); lg.userData.head.scale.x = lampW;
+  lg.userData.strip.position.set(0, lampY - 0.024 * S, armL); lg.userData.strip.scale.x = lampW * 0.9;
+  const zAxis = new THREE.Vector3(0, 0, 1);
+  u.lamp = new THREE.Vector3(0, lampY - 0.03 * S, armL).applyAxisAngle(zAxis, -rot);   // point d'où part la lumière
+  u.aim = new THREE.Vector3(0, -vh * 0.1, 0).applyAxisAngle(zAxis, -rot);              // le faisceau vise le tableau
 }
 
 function createPainting(rec) {
@@ -816,18 +835,16 @@ function createPainting(rec) {
   bar(w + 2 * b, b, 0, h / 2 + b / 2); bar(w + 2 * b, b, 0, -h / 2 - b / 2); bar(b, h, -w / 2 - b / 2, 0); bar(b, h, w / 2 + b / 2, 0);
 
   // lampe à bras (comme dans une vraie galerie) : le faisceau part de la lampe, plus du mur
-  const lampW = Math.max(0.35 * SCALE, Math.min(w * 0.55, 1.4 * SCALE));
-  const lampY = h / 2 + b + 0.16 * SCALE, armL = 0.3 * SCALE;
-  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.02 * SCALE, 0.02 * SCALE, armL), frameMat);
-  arm.position.set(0, lampY, armL / 2);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(lampW, 0.045 * SCALE, 0.075 * SCALE), frameMat);
-  head.position.set(0, lampY, armL);
-  const strip = new THREE.Mesh(new THREE.BoxGeometry(lampW * 0.9, 0.006 * SCALE, 0.05 * SCALE), lightBarMat);
-  strip.position.set(0, lampY - 0.024 * SCALE, armL);
-  group.add(arm, head, strip);
+  const lampG = new THREE.Group();
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.02 * SCALE, 0.02 * SCALE, 0.3 * SCALE), frameMat);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(1, 0.045 * SCALE, 0.075 * SCALE), frameMat);
+  const strip = new THREE.Mesh(new THREE.BoxGeometry(1, 0.006 * SCALE, 0.05 * SCALE), lightBarMat);
+  lampG.add(arm, head, strip);
+  lampG.userData.arm = arm; lampG.userData.head = head; lampG.userData.strip = strip;
+  group.add(lampG);
   group.userData.w = w; group.userData.h = h;
-  group.userData.lamp = new THREE.Vector3(0, lampY - 0.03 * SCALE, armL);   // point d'où part la lumière
-  group.userData.aim = new THREE.Vector3(0, -h * 0.1, 0);                  // le faisceau vise le tableau
+  group.userData.lampG = lampG;
+  layoutLamp(group);
 
   scene.add(group);
   paintingGroups.push(group);
